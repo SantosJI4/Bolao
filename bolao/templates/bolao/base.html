@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Fut Amigo{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --cor-primaria: #000;
+            --cor-secundaria: #333;
+            --cor-accent: #666;
+            --cor-fundo: #fff;
+            --cor-fundo-alt: #f8f9fa;
+            --cor-sucesso: #28a745;
+            --cor-erro: #dc3545;
+            --cor-aviso: #ffc107;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: var(--cor-primaria);
+            background-color: var(--cor-fundo);
+            line-height: 1.6;
+        }
+        
+        .navbar {
+            background-color: var(--cor-fundo) !important;
+            border-bottom: 2px solid var(--cor-primaria);
+            padding: 1rem 0;
+        }
+        
+        .navbar-brand {
+            font-weight: bold;
+            font-size: 1.5rem;
+            color: var(--cor-primaria) !important;
+        }
+        
+        .nav-link {
+            color: var(--cor-secundaria) !important;
+            font-weight: 500;
+            transition: color 0.3s ease;
+        }
+        
+        .nav-link:hover {
+            color: var(--cor-primaria) !important;
+        }
+        
+        .btn-primary {
+            background-color: var(--cor-primaria);
+            border-color: var(--cor-primaria);
+            border-radius: 0.375rem;
+            font-weight: 500;
+        }
+        
+        .btn-primary:hover {
+            background-color: var(--cor-secundaria);
+            border-color: var(--cor-secundaria);
+        }
+        
+        .btn-outline-primary {
+            color: var(--cor-primaria);
+            border-color: var(--cor-primaria);
+        }
+        
+        .btn-outline-primary:hover {
+            background-color: var(--cor-primaria);
+            border-color: var(--cor-primaria);
+        }
+        
+        .card {
+            border: 1px solid #e0e0e0;
+            border-radius: 0.5rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        
+        .card-header {
+            background-color: var(--cor-fundo-alt);
+            border-bottom: 1px solid #e0e0e0;
+            font-weight: 600;
+        }
+        
+        .alert {
+            border-radius: 0.5rem;
+            border: none;
+        }
+        
+        .alert-success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        
+        .alert-danger {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        
+        .alert-warning {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        
+        .table {
+            color: var(--cor-primaria);
+        }
+        
+        .table-striped > tbody > tr:nth-of-type(odd) > td {
+            background-color: var(--cor-fundo-alt);
+        }
+        
+        .badge {
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+        
+        .status-futura {
+            color: #007bff;
+            font-weight: bold;
+        }
+        
+        .status-atual {
+            color: var(--cor-sucesso);
+            font-weight: bold;
+            animation: pulse 2s infinite;
+        }
+        
+        .status-encerrada {
+            color: var(--cor-erro);
+            font-weight: bold;
+        }
+        
+        .resultado-acerto {
+            color: var(--cor-sucesso);
+            font-weight: bold;
+        }
+        
+        .resultado-erro {
+            color: var(--cor-erro);
+            font-weight: bold;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+        
+        .footer {
+            background-color: var(--cor-fundo-alt);
+            border-top: 1px solid #e0e0e0;
+            margin-top: 3rem;
+            padding: 2rem 0;
+        }
+        
+        .form-control:focus {
+            border-color: var(--cor-primaria);
+            box-shadow: 0 0 0 0.2rem rgba(0,0,0,0.25);
+        }
+        
+        .classificacao-podio {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .posicao-1 { border-left: 4px solid #ffd700; }
+        .posicao-2 { border-left: 4px solid #c0c0c0; }
+        .posicao-3 { border-left: 4px solid #cd7f32; }
+        
+        .jogo-item {
+            background-color: var(--cor-fundo);
+            border: 1px solid #e0e0e0;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-bottom: 0.5rem;
+            transition: all 0.2s ease;
+        }
+        
+        .jogo-item:hover {
+            background-color: var(--cor-fundo-alt);
+            border-color: var(--cor-primaria);
+        }
+        
+        .vs-text {
+            font-weight: bold;
+            color: var(--cor-accent);
+            font-size: 1.1rem;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 0 15px;
+            }
+            
+            .card {
+                margin-bottom: 1rem;
+            }
+            
+            .navbar-brand {
+                font-size: 1.2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-light">
+        <div class="container">
+            <a class="navbar-brand" href="{% url 'home' %}">
+                <i class="fas fa-futbol me-2"></i>
+                Bolão Brasileirão
+            </a>
+            
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'home' %}">
+                            <i class="fas fa-home me-1"></i>Início
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'classificacao' %}">
+                            <i class="fas fa-trophy me-1"></i>Classificação
+                        </a>
+                    </li>
+                </ul>
+                
+                <ul class="navbar-nav">
+                    {% if user.is_authenticated %}
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
+                                {% if user.participante.foto_perfil %}
+                                    <img src="{{ user.participante.foto_perfil.url }}" 
+                                         alt="Foto de {{ user.participante.nome_exibicao }}"
+                                         class="rounded-circle me-2"
+                                         style="width: 24px; height: 24px; object-fit: cover;">
+                                {% else %}
+                                    <i class="fas fa-user me-2"></i>
+                                {% endif %}
+                                {{ user.participante.nome_exibicao|default:user.username }}
+                            </a>
+                            <ul class="dropdown-menu">
+                                {% if user.participante %}
+                                <li><a class="dropdown-item" href="{% url 'perfil_participante' user.participante.id %}">
+                                    <i class="fas fa-user-circle me-1"></i>Meu Perfil
+                                </a></li>
+                                <li><a class="dropdown-item" href="{% url 'editar_perfil' %}">
+                                    <i class="fas fa-edit me-1"></i>Editar Perfil
+                                </a></li>
+                                {% endif %}
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="{% url 'logout' %}">
+                                    <i class="fas fa-sign-out-alt me-1"></i>Sair
+                                </a></li>
+                            </ul>
+                        </li>
+                    {% else %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{% url 'login' %}">
+                                <i class="fas fa-sign-in-alt me-1"></i>Entrar
+                            </a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Messages -->
+    {% if messages %}
+        <div class="container mt-3">
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <!-- Main Content -->
+    <main class="container mt-4">
+        {% block content %}
+        {% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer mt-5">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-6">
+                    <h5>Bolão Brasileirão</h5>
+                    <p class="text-muted mb-0">Sistema de palpites do Campeonato Brasileiro Série A</p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <p class="text-muted mb-0">
+                        <i class="fas fa-code me-1"></i>
+                        Desenvolvido por iury. 2026
+                    </p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    {% block extra_js %}
+    {% endblock %}
+</body>
+</html>

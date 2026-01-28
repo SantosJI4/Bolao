@@ -1,0 +1,189 @@
+{% extends 'bolao/base.html' %}
+{% load bolao_extras %}
+
+{% block title %}Palpites - {{ rodada }} - Bolão Brasileirão{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>
+                <i class="fas fa-edit me-2"></i>
+                Palpites - {{ rodada }}
+            </h1>
+            <a href="{% url 'home' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-1"></i>
+                Voltar
+            </a>
+        </div>
+        
+        <div class="alert alert-info" role="alert">
+            <h5 class="alert-heading">
+                <i class="fas fa-clock me-2"></i>
+                Atenção!
+            </h5>
+            <p class="mb-2">
+                <strong>Prazo:</strong> Até {{ rodada.data_fim|date:"d/m/Y às H:i" }}
+            </p>
+            <p class="mb-0">
+                Você pode alterar seus palpites quantas vezes quiser até o prazo final.
+            </p>
+        </div>
+    </div>
+</div>
+
+<form method="post">
+    {% csrf_token %}
+    
+    <div class="row">
+        {% for jogo in jogos %}
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card jogo-item">
+                <div class="card-body">
+                    <div class="text-center mb-3">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div class="text-center" style="flex: 1;">
+                                {% if jogo.time_casa.escudo %}
+                                    <img src="{{ jogo.time_casa.escudo.url }}" 
+                                         alt="{{ jogo.time_casa.nome }}" 
+                                         style="width: 40px; height: 40px; object-fit: contain;">
+                                {% endif %}
+                                <h6 class="mt-2 mb-0">{{ jogo.time_casa.nome }}</h6>
+                            </div>
+                            
+                            <div class="text-center px-3">
+                                <span class="vs-text">VS</span>
+                                <br>
+                                <small class="text-muted">
+                                    {{ jogo.data_hora|date:"d/m H:i" }}
+                                </small>
+                            </div>
+                            
+                            <div class="text-center" style="flex: 1;">
+                                {% if jogo.time_visitante.escudo %}
+                                    <img src="{{ jogo.time_visitante.escudo.url }}" 
+                                         alt="{{ jogo.time_visitante.nome }}" 
+                                         style="width: 40px; height: 40px; object-fit: contain;">
+                                {% endif %}
+                                <h6 class="mt-2 mb-0">{{ jogo.time_visitante.nome }}</h6>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label text-center w-100">
+                            <strong>Seu palpite:</strong>
+                        </label>
+                        
+                        <div class="row g-2">
+                            <div class="col-5">
+                                <div class="text-center">
+                                    <label for="gols_casa_{{ jogo.id }}" class="form-label small">
+                                        Gols {{ jogo.time_casa.sigla }}
+                                    </label>
+                                    <input type="number" 
+                                           class="form-control text-center fw-bold" 
+                                           id="gols_casa_{{ jogo.id }}" 
+                                           name="gols_casa_{{ jogo.id }}" 
+                                           min="0" 
+                                           max="20"
+                                           value="{% with palpite=palpites_existentes|dict_item:jogo.id %}{% if palpite %}{{ palpite.gols_casa_palpite }}{% endif %}{% endwith %}"
+                                           placeholder="0">
+                                </div>
+                            </div>
+                            
+                            <div class="col-2 d-flex align-items-end justify-content-center">
+                                <span class="fw-bold fs-4 text-muted">×</span>
+                            </div>
+                            
+                            <div class="col-5">
+                                <div class="text-center">
+                                    <label for="gols_visitante_{{ jogo.id }}" class="form-label small">
+                                        Gols {{ jogo.time_visitante.sigla }}
+                                    </label>
+                                    <input type="number" 
+                                           class="form-control text-center fw-bold" 
+                                           id="gols_visitante_{{ jogo.id }}" 
+                                           name="gols_visitante_{{ jogo.id }}" 
+                                           min="0" 
+                                           max="20"
+                                           value="{% with palpite=palpites_existentes|dict_item:jogo.id %}{% if palpite %}{{ palpite.gols_visitante_palpite }}{% endif %}{% endwith %}"
+                                           placeholder="0">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        {% if palpites_existentes|dict_item:jogo.id %}
+                        <div class="mt-2 text-center">
+                            <small class="text-success">
+                                <i class="fas fa-check me-1"></i>
+                                Palpite: {% with palpite=palpites_existentes|dict_item:jogo.id %}{{ palpite.gols_casa_palpite }} × {{ palpite.gols_visitante_palpite }}{% endwith %}
+                            </small>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body text-center">
+                    <button type="submit" class="btn btn-primary btn-lg me-3">
+                        <i class="fas fa-save me-2"></i>
+                        Salvar Todos os Palpites
+                    </button>
+                    
+                    <a href="{% url 'home' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-times me-1"></i>
+                        Cancelar
+                    </a>
+                    
+                    <div class="mt-3">
+                        <small class="text-muted">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Selecione um palpite para cada jogo e clique em "Salvar" para confirmar.
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Adiciona comportamento visual aos botões de palpite
+    document.addEventListener('DOMContentLoaded', function() {
+        const radioButtons = document.querySelectorAll('input[type="radio"]');
+        
+        radioButtons.forEach(function(radio) {
+            radio.addEventListener('change', function() {
+                // Remove active class de todos os labels do mesmo grupo
+                const groupName = this.name;
+                const groupRadios = document.querySelectorAll(`input[name="${groupName}"]`);
+                
+                groupRadios.forEach(function(groupRadio) {
+                    const label = document.querySelector(`label[for="${groupRadio.id}"]`);
+                    label.classList.remove('active');
+                });
+                
+                // Adiciona active class no label selecionado
+                const selectedLabel = document.querySelector(`label[for="${this.id}"]`);
+                selectedLabel.classList.add('active');
+            });
+        });
+        
+        // Ativa labels já selecionados
+        document.querySelectorAll('input[type="radio"]:checked').forEach(function(radio) {
+            const label = document.querySelector(`label[for="${radio.id}"]`);
+            label.classList.add('active');
+        });
+    });
+</script>
+{% endblock %}

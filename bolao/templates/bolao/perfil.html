@@ -1,0 +1,339 @@
+{% extends 'bolao/base.html' %}
+
+{% block title %}Perfil - {{ participante.nome_exibicao }} - Bolão Brasileirão{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>
+                <i class="fas fa-user-circle me-2"></i>
+                Perfil - {{ participante.nome_exibicao }}
+            </h1>
+            <a href="{% url 'classificacao' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-1"></i>
+                Voltar para Classificação
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Informações Gerais -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body text-center">
+                <!-- Foto de perfil -->
+                {% if participante.foto_perfil %}
+                    <img src="{{ participante.foto_perfil.url }}" 
+                         alt="Foto de {{ participante.nome_exibicao }}"
+                         class="img-thumbnail rounded-circle mb-3"
+                         style="width: 120px; height: 120px; object-fit: cover;">
+                {% else %}
+                    <div class="bg-light rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
+                         style="width: 120px; height: 120px;">
+                        <i class="fas fa-user text-muted fa-3x"></i>
+                    </div>
+                {% endif %}
+                
+                <h4>{{ participante.nome_exibicao }}</h4>
+                <p class="text-muted mb-2">
+                    <i class="fas fa-calendar-plus me-1"></i>
+                    Participando desde {{ participante.data_cadastro|date:"d/m/Y" }}
+                </p>
+                
+                <!-- Botão de editar perfil se for o próprio usuário -->
+                {% if request.user.participante == participante %}
+                    <a href="{% url 'editar_perfil' %}" class="btn btn-outline-primary btn-sm mb-2">
+                        <i class="fas fa-edit me-1"></i>
+                        Editar Perfil
+                    </a>
+                {% endif %}
+                
+                {% if classificacao_atual %}
+                <div class="badge bg-primary fs-6 mb-2">
+                    {{ classificacao_atual.posicao }}º Lugar
+                </div>
+                <div class="text-muted">
+                    {{ classificacao_atual.pontos_totais }} pontos totais
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-chart-bar me-2"></i>
+                    Estatísticas Gerais
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-6 col-md-3">
+                        <div class="border-end border-md-end-0 border-bottom border-md-bottom-0 pb-3 pb-md-0">
+                            <h3 class="text-primary">{{ total_palpites }}</h3>
+                            <p class="text-muted mb-0">Palpites</p>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="border-end border-md-end-0 border-bottom border-md-bottom-0 pb-3 pb-md-0">
+                            <h3 class="text-success">{{ acertos }}</h3>
+                            <p class="text-muted mb-0">Acertos</p>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3 mt-3 mt-md-0">
+                        <div class="border-end border-md-end-0">
+                            <h3 class="text-warning">{{ empates_acertados }}</h3>
+                            <p class="text-muted mb-0">Empates</p>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3 mt-3 mt-md-0">
+                        <h3 class="text-info">{{ vitorias_acertadas }}</h3>
+                        <p class="text-muted mb-0">Vitórias</p>
+                    </div>
+                </div>
+                
+                <!-- Barra de Aproveitamento -->
+                <div class="mt-4">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="fw-bold">Aproveitamento</span>
+                        <span class="fw-bold">{{ porcentagem_acerto }}%</span>
+                    </div>
+                    <div class="progress" style="height: 10px;">
+                        <div class="progress-bar 
+                            {% if porcentagem_acerto >= 70 %}bg-success
+                            {% elif porcentagem_acerto >= 50 %}bg-warning
+                            {% else %}bg-danger{% endif %}" 
+                             role="progressbar" 
+                             style="width: %{{ porcentagem_acerto }}%">
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        <small class="text-muted">
+                            {% if porcentagem_acerto >= 70 %}
+                                <i class="fas fa-thumbs-up text-success me-1"></i>
+                                Excelente aproveitamento!
+                            {% elif porcentagem_acerto >= 50 %}
+                                <i class="fas fa-thumbs-up text-warning me-1"></i>
+                                Bom aproveitamento!
+                            {% else %}
+                                <i class="fas fa-chart-line text-danger me-1"></i>
+                                Continue tentando!
+                            {% endif %}
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Palpites Recentes -->
+{% if palpites_recentes %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-history me-2"></i>
+                    Palpites Recentes
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Data</th>
+                                <th>Jogo</th>
+                                <th>Palpite</th>
+                                <th>Resultado</th>
+                                <th>Status</th>
+                                <th>Pontos</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for palpite in palpites_recentes %}
+                            <tr>
+                                <td>
+                                    <small class="text-muted">
+                                        {{ palpite.data_palpite|date:"d/m/Y H:i" }}
+                                    </small>
+                                </td>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <small>
+                                            {{ palpite.jogo.time_casa.nome }}
+                                            <span class="mx-2">×</span>
+                                            {{ palpite.jogo.time_visitante.nome }}
+                                        </small>
+                                    </div>
+                                    <small class="text-muted d-block">
+                                        Rodada {{ palpite.jogo.rodada.numero }}
+                                    </small>
+                                </td>
+                                <td>
+                                    {% if palpite.resultado_palpite == 'V' %}
+                                        <span class="badge bg-success">Casa</span>
+                                    {% elif palpite.resultado_palpite == 'E' %}
+                                        <span class="badge bg-warning">Empate</span>
+                                    {% elif palpite.resultado_palpite == 'D' %}
+                                        <span class="badge bg-danger">Visitante</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if palpite.jogo.resultado_finalizado %}
+                                        <small>
+                                            {{ palpite.jogo.gols_casa }} - {{ palpite.jogo.gols_visitante }}
+                                        </small>
+                                        <br>
+                                        {% if palpite.jogo.resultado == 'V' %}
+                                            <span class="badge bg-outline-success">Casa</span>
+                                        {% elif palpite.jogo.resultado == 'E' %}
+                                            <span class="badge bg-outline-warning">Empate</span>
+                                        {% elif palpite.jogo.resultado == 'D' %}
+                                            <span class="badge bg-outline-danger">Visitante</span>
+                                        {% endif %}
+                                    {% else %}
+                                        <small class="text-muted">Pendente</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if palpite.jogo.resultado_finalizado %}
+                                        {% if palpite.acertou %}
+                                            <span class="text-success fw-bold">
+                                                <i class="fas fa-check-circle me-1"></i>
+                                                ACERTO
+                                            </span>
+                                        {% else %}
+                                            <span class="text-danger fw-bold">
+                                                <i class="fas fa-times-circle me-1"></i>
+                                                ERRO
+                                            </span>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="text-muted">
+                                            <i class="fas fa-clock me-1"></i>
+                                            Aguardando
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if palpite.jogo.resultado_finalizado %}
+                                        <span class="badge bg-primary">
+                                            +{{ palpite.pontos_obtidos }}
+                                        </span>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body text-center py-5">
+                <i class="fas fa-chart-line fa-4x text-muted mb-3"></i>
+                <h4 class="text-muted">Nenhum palpite encontrado</h4>
+                <p class="text-muted">
+                    Este participante ainda não fez nenhum palpite ou todos os jogos ainda estão pendentes.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Performance por Rodada -->
+{% if classificacao_atual %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-trophy me-2"></i>
+                    Classificação Atual
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h3 class="{% if classificacao_atual.posicao <= 3 %}text-warning{% else %}text-primary{% endif %}">
+                            {{ classificacao_atual.posicao }}º Lugar
+                            {% if classificacao_atual.posicao == 1 %}
+                                <i class="fas fa-crown text-warning ms-1"></i>
+                            {% elif classificacao_atual.posicao == 2 %}
+                                <i class="fas fa-medal text-secondary ms-1"></i>
+                            {% elif classificacao_atual.posicao == 3 %}
+                                <i class="fas fa-award text-warning ms-1"></i>
+                            {% endif %}
+                        </h3>
+                        <p class="text-muted">Posição na classificação geral</p>
+                    </div>
+                    <div class="col-md-6 text-md-end">
+                        <h3 class="text-primary">{{ classificacao_atual.pontos_totais }} pontos</h3>
+                        <p class="text-muted">Pontuação total acumulada</p>
+                    </div>
+                </div>
+                
+                <div class="text-center mt-3">
+                    <small class="text-muted">
+                        <i class="fas fa-sync me-1"></i>
+                        Última atualização: {{ classificacao_atual.ultima_atualizacao|date:"d/m/Y H:i" }}
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Adiciona animações suaves aos elementos
+    document.addEventListener('DOMContentLoaded', function() {
+        // Anima as estatísticas
+        const counters = document.querySelectorAll('h3');
+        counters.forEach(function(counter) {
+            if (!isNaN(counter.textContent)) {
+                const target = parseInt(counter.textContent);
+                let current = 0;
+                const increment = target / 30;
+                const timer = setInterval(function() {
+                    current += increment;
+                    if (current >= target) {
+                        counter.textContent = target;
+                        clearInterval(timer);
+                    } else {
+                        counter.textContent = Math.floor(current);
+                    }
+                }, 50);
+            }
+        });
+        
+        // Anima a barra de progresso
+        const progressBar = document.querySelector('.progress-bar');
+        if (progressBar) {
+            const width = progressBar.style.width;
+            progressBar.style.width = '0%';
+            setTimeout(function() {
+                progressBar.style.width = width;
+                progressBar.style.transition = 'width 1s ease-in-out';
+            }, 500);
+        }
+    });
+</script>
+{% endblock %}

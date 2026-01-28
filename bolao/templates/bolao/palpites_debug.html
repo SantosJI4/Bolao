@@ -1,0 +1,39 @@
+{% extends 'bolao/base.html' %}
+
+{% block title %}Debug Palpites - {{ rodada }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1>Debug - Palpites {{ rodada.nome }}</h1>
+    
+    <p>Participante: {{ participante.nome_exibicao }}</p>
+    
+    <div>
+        <h3>Jogos:</h3>
+        {% for jogo in jogos %}
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5>{{ jogo.time_casa.nome }} vs {{ jogo.time_visitante.nome }}</h5>
+                    <p>ID do jogo: {{ jogo.id }}</p>
+                    
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="row">
+                            <div class="col-6">
+                                <label>Gols {{ jogo.time_casa.sigla }}:</label>
+                                <input type="number" name="gols_casa_{{ jogo.id }}" min="0" max="20" value="0" class="form-control">
+                            </div>
+                            <div class="col-6">
+                                <label>Gols {{ jogo.time_visitante.sigla }}:</label>
+                                <input type="number" name="gols_visitante_{{ jogo.id }}" min="0" max="20" value="0" class="form-control">
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+    
+    <button type="submit" class="btn btn-success">Salvar Palpites</button>
+</div>
+{% endblock %}

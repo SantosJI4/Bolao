@@ -1,0 +1,134 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static admin_modify %}
+
+{% block title %}{{ title }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+<a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+&rsaquo; <a href="{% url 'admin:app_list' app_label='bolao' %}">Bolao</a>
+&rsaquo; <a href="{% url 'admin:bolao_jogo_changelist' %}">Jogos</a>
+&rsaquo; {{ title }}
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+    <div class="module aligned">
+        <h2>📊 {{ title }}</h2>
+        <p class="help">
+            Use esta funcionalidade para inserir vários resultados de uma vez só. 
+            Digite os resultados no formato "golsCasa x golsVisitante" (ex: 2x1, 0x0, 1x3).
+            Os resultados serão aplicados na ordem dos jogos da rodada.
+        </p>
+        
+        {% if form.errors %}
+            <div class="errorlist">
+                <h3>Corrija os seguintes erros:</h3>
+                {{ form.errors }}
+            </div>
+        {% endif %}
+        
+        <form method="post" novalidate>
+            {% csrf_token %}
+            <fieldset class="module aligned">
+                <div class="form-row">
+                    {{ form.rodada.label_tag }}
+                    <div class="field-box">
+                        {{ form.rodada }}
+                        <p class="help">{{ form.rodada.help_text }}</p>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    {{ form.resultados.label_tag }}
+                    <div class="field-box">
+                        {{ form.resultados }}
+                        <p class="help">{{ form.resultados.help_text }}</p>
+                    </div>
+                </div>
+            </fieldset>
+            
+            <div class="submit-row">
+                <input type="submit" value="💾 Aplicar Resultados" class="default" />
+                <a href="{% url 'admin:bolao_jogo_changelist' %}" class="button cancel-link">🔙 Cancelar</a>
+            </div>
+        </form>
+        
+        <!-- Preview dos jogos da rodada selecionada -->
+        <div id="preview-jogos" style="margin-top: 30px; display: none;">
+            <h3>📋 Prévia dos Jogos da Rodada</h3>
+            <div id="lista-jogos"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const rodadaSelect = document.querySelector('#id_rodada');
+    const previewDiv = document.querySelector('#preview-jogos');
+    const listaJogosDiv = document.querySelector('#lista-jogos');
+    
+    function carregarJogos() {
+        const rodadaId = rodadaSelect.value;
+        if (!rodadaId) {
+            previewDiv.style.display = 'none';
+            return;
+        }
+        
+        // Aqui você pode fazer uma chamada AJAX para buscar os jogos
+        // Por simplicidade, vamos mostrar instruções
+        previewDiv.style.display = 'block';
+        listaJogosDiv.innerHTML = '<p><em>Os resultados serão aplicados na ordem cronológica dos jogos da rodada selecionada.</em></p>';
+    }
+    
+    rodadaSelect.addEventListener('change', carregarJogos);
+    
+    // Validação no frontend
+    const form = document.querySelector('form');
+    form.addEventListener('submit', function(e) {
+        const resultados = document.querySelector('#id_resultados').value.trim();
+        if (!resultados) {
+            alert('Por favor, digite os resultados.');
+            e.preventDefault();
+            return;
+        }
+        
+        if (!rodadaSelect.value) {
+            alert('Por favor, selecione uma rodada.');
+            e.preventDefault();
+            return;
+        }
+    });
+});
+</script>
+
+<style>
+.field-box textarea {
+    width: 100%;
+    max-width: 600px;
+    font-family: monospace;
+    font-size: 14px;
+}
+
+.submit-row .cancel-link {
+    margin-left: 10px;
+    text-decoration: none;
+    padding: 8px 15px;
+    background: #666;
+    color: white;
+    border-radius: 4px;
+}
+
+.submit-row .cancel-link:hover {
+    background: #888;
+}
+
+#preview-jogos {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+}
+</style>
+{% endblock %}

@@ -1,0 +1,246 @@
+{% extends 'bolao/base.html' %}
+
+{% block title %}Bolão Brasileirão - Início{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="fas fa-futbol me-2"></i>
+            Bem-vindo ao Bolão Brasileirão!
+        </h1>
+        
+        {% if user.is_authenticated and participante %}
+            <div class="alert alert-success" role="alert">
+                <h4 class="alert-heading">Olá, {{ participante.nome_exibicao }}!</h4>
+                <p class="mb-0">Você está logado e pronto para fazer seus palpites.</p>
+            </div>
+        {% elif user.is_authenticated %}
+            <div class="alert alert-info" role="alert">
+                <h4 class="alert-heading">Olá, {{ user.username }}!</h4>
+                <p class="mb-0">Você está logado, mas não está cadastrado como participante do bolão. Entre em contato com o administrador.</p>
+            </div>
+        {% else %}
+            <div class="alert alert-warning" role="alert">
+                <h4 class="alert-heading">Entre para participar!</h4>
+                <p class="mb-2">Faça login com suas credenciais para acessar o sistema de palpites.</p>
+                <a href="{% url 'login' %}" class="btn btn-primary">
+                    <i class="fas fa-sign-in-alt me-1"></i>
+                    Fazer Login
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row">
+    <!-- Rodada Atual -->
+    {% if rodada_atual %}
+    <div class="col-md-8 mb-4">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-play-circle me-2 text-success"></i>
+                    {{ rodada_atual }} - ATIVA
+                </h5>
+                <span class="badge bg-success status-atual">
+                    <i class="fas fa-clock me-1"></i>
+                    Aberta para palpites
+                </span>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p class="mb-2">
+                            <strong>Início:</strong> 
+                            {{ rodada_atual.data_inicio|date:"d/m/Y H:i" }}
+                        </p>
+                        <p class="mb-2">
+                            <strong>Fim:</strong> 
+                            {{ rodada_atual.data_fim|date:"d/m/Y H:i" }}
+                        </p>
+                        <p class="mb-0">
+                            <strong>Jogos:</strong> 
+                            {{ rodada_atual.jogo_set.count }} confrontos
+                        </p>
+                    </div>
+                    <div class="col-md-6 text-md-end">
+                        {% if user.is_authenticated and participante %}
+                            <a href="{% url 'rodada_palpites' rodada_atual.id %}" class="btn btn-primary btn-lg">
+                                <i class="fas fa-edit me-2"></i>
+                                Fazer Palpites
+                            </a>
+                        {% elif user.is_authenticated %}
+                            <p class="text-muted">
+                                <i class="fas fa-user-times me-1"></i>
+                                Você precisa ser cadastrado como participante
+                            </p>
+                        {% else %}
+                            <p class="text-muted">
+                                <i class="fas fa-lock me-1"></i>
+                                Faça login para palpitar
+                            </p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Widget Classificação -->
+    <div class="col-md-4 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-trophy me-2"></i>
+                    Classificação
+                </h5>
+            </div>
+            <div class="card-body">
+                <p class="text-center mb-3">
+                    <a href="{% url 'classificacao' %}" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-list me-1"></i>
+                        Ver Classificação Completa
+                    </a>
+                </p>
+                
+                {% if user.is_authenticated and participante %}
+                <div class="text-center">
+                    <h6>Sua Posição</h6>
+                    <div class="d-flex justify-content-between align-items-center bg-light p-2 rounded">
+                        <span class="fw-bold">{{ participante.nome_exibicao }}</span>
+                        <span class="badge bg-primary">{{ participante.pontos_totais }} pts</span>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Próximas Rodadas -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-calendar-plus me-2 text-primary"></i>
+                    Próximas Rodadas
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if rodadas_futuras %}
+                    {% for rodada in rodadas_futuras %}
+                    <div class="jogo-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-1">{{ rodada }}</h6>
+                                <small class="text-muted">
+                                    <i class="fas fa-calendar me-1"></i>
+                                    {{ rodada.data_inicio|date:"d/m/Y H:i" }}
+                                </small>
+                            </div>
+                            <span class="badge bg-secondary status-futura">
+                                <i class="fas fa-lock me-1"></i>
+                                Bloqueada
+                            </span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted text-center mb-0">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Nenhuma rodada futura cadastrada
+                    </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Rodadas Passadas -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-history me-2 text-danger"></i>
+                    Resultados Recentes
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if rodadas_passadas %}
+                    {% for rodada in rodadas_passadas %}
+                    <div class="jogo-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-1">{{ rodada }}</h6>
+                                <small class="text-muted">
+                                    <i class="fas fa-calendar-check me-1"></i>
+                                    {{ rodada.data_fim|date:"d/m/Y" }}
+                                </small>
+                            </div>
+                            <a href="{% url 'resultados_rodada' rodada.id %}" class="btn btn-outline-primary btn-sm">
+                                <i class="fas fa-eye me-1"></i>
+                                Ver Resultados
+                            </a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted text-center mb-0">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Nenhuma rodada finalizada ainda
+                    </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Seção de Instruções -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Como Funciona o Bolão
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="text-center mb-3">
+                            <i class="fas fa-edit fa-3x text-primary mb-2"></i>
+                            <h6>1. Faça seus Palpites</h6>
+                            <p class="text-muted small">
+                                Para cada jogo, escolha: Vitória do time da casa, Empate ou Vitória do visitante.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="text-center mb-3">
+                            <i class="fas fa-calculator fa-3x text-success mb-2"></i>
+                            <h6>2. Ganhe Pontos</h6>
+                            <p class="text-muted small">
+                                <strong>Empate correto:</strong> 1 ponto<br>
+                                <strong>Resultado correto:</strong> 3 pontos<br>
+                                <strong>Palpite errado:</strong> 0 pontos
+                            </p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="text-center mb-3">
+                            <i class="fas fa-trophy fa-3x text-warning mb-2"></i>
+                            <h6>3. Dispute o Título</h6>
+                            <p class="text-muted small">
+                                Os pontos são somados a cada rodada. Quem fizer mais pontos vence o bolão!
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

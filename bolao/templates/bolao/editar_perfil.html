@@ -1,0 +1,163 @@
+{% extends 'bolao/base.html' %}
+
+{% block title %}Editar Perfil - Bolão Brasileirão{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        <i class="fas fa-user-edit me-2"></i>
+                        Editar Perfil
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <!-- Foto atual -->
+                                <div class="mb-4 text-center">
+                                    {% if participante.foto_perfil %}
+                                        <img src="{{ participante.foto_perfil.url }}" 
+                                             alt="Foto de {{ participante.nome_exibicao }}"
+                                             class="img-thumbnail rounded-circle mb-3"
+                                             style="width: 120px; height: 120px; object-fit: cover;">
+                                        <p class="text-muted small">Foto atual</p>
+                                    {% else %}
+                                        <div class="bg-secondary rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
+                                             style="width: 120px; height: 120px;">
+                                            <i class="fas fa-user text-white fa-3x"></i>
+                                        </div>
+                                        <p class="text-muted small">Nenhuma foto definida</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <!-- Informações básicas -->
+                                <div class="mb-3">
+                                    <label class="form-label"><strong>Usuário:</strong></label>
+                                    <p class="form-control-plaintext">{{ user.username }}</p>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label"><strong>Email:</strong></label>
+                                    <p class="form-control-plaintext">{{ user.email|default:"Não informado" }}</p>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label"><strong>Membro desde:</strong></label>
+                                    <p class="form-control-plaintext">{{ participante.data_cadastro|date:"d/m/Y" }}</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <hr>
+                        
+                        <!-- Campos editáveis -->
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="{{ form.nome_exibicao.id_for_label }}" class="form-label">
+                                        {{ form.nome_exibicao.label }}
+                                    </label>
+                                    {{ form.nome_exibicao }}
+                                    {% if form.nome_exibicao.errors %}
+                                        <div class="text-danger small mt-1">
+                                            {{ form.nome_exibicao.errors|first }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="{{ form.foto_perfil.id_for_label }}" class="form-label">
+                                        {{ form.foto_perfil.label }}
+                                    </label>
+                                    {{ form.foto_perfil }}
+                                    {% if form.foto_perfil.help_text %}
+                                        <div class="form-text">{{ form.foto_perfil.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.foto_perfil.errors %}
+                                        <div class="text-danger small mt-1">
+                                            {{ form.foto_perfil.errors|first }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between mt-4">
+                            <a href="{% url 'perfil_participante' participante.id %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-arrow-left me-2"></i>
+                                Voltar para Perfil
+                            </a>
+                            
+                            <div>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save me-2"></i>
+                                    Salvar Alterações
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Preview da imagem quando selecionada
+document.querySelector('#id_foto_perfil').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (file) {
+        // Verifica se é uma imagem
+        if (!file.type.startsWith('image/')) {
+            alert('Por favor, selecione apenas arquivos de imagem.');
+            this.value = '';
+            return;
+        }
+        
+        // Verifica o tamanho (5MB máximo)
+        if (file.size > 5 * 1024 * 1024) {
+            alert('O arquivo é muito grande. Tamanho máximo: 5MB.');
+            this.value = '';
+            return;
+        }
+        
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const imgContainer = document.querySelector('.col-md-6 .mb-4');
+            const existingImg = imgContainer.querySelector('img');
+            const existingDiv = imgContainer.querySelector('.bg-secondary');
+            
+            if (existingImg) {
+                existingImg.src = e.target.result;
+            } else if (existingDiv) {
+                // Substitui o div pelo img
+                const newImg = document.createElement('img');
+                newImg.src = e.target.result;
+                newImg.alt = 'Preview da foto';
+                newImg.className = 'img-thumbnail rounded-circle mb-3';
+                newImg.style.width = '120px';
+                newImg.style.height = '120px';
+                newImg.style.objectFit = 'cover';
+                
+                existingDiv.parentNode.replaceChild(newImg, existingDiv);
+                
+                // Atualiza o texto
+                const textElement = imgContainer.querySelector('.text-muted');
+                textElement.textContent = 'Nova foto selecionada';
+            }
+        };
+        reader.readAsDataURL(file);
+    }
+});
+</script>
+{% endblock %}

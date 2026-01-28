@@ -1,0 +1,253 @@
+{% extends 'bolao/base.html' %}
+{% load bolao_extras %}
+
+{% block title %}Resultados - {{ rodada }} - Bolão Brasileirão{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>
+                <i class="fas fa-chart-line me-2"></i>
+                Resultados - {{ rodada }}
+            </h1>
+            <a href="{% url 'home' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-1"></i>
+                Voltar
+            </a>
+        </div>
+        
+        {% if user.is_authenticated %}
+        <div class="alert alert-info" role="alert">
+            <h5 class="alert-heading">
+                <i class="fas fa-user-check me-2"></i>
+                Seus Resultados
+            </h5>
+            <p class="mb-0">
+                Aqui você pode ver como foram seus palpites nesta rodada, comparando com os resultados reais.
+            </p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row">
+    {% for jogo in jogos %}
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card">
+            <div class="card-body">
+                <!-- Cabeçalho do Jogo -->
+                <div class="text-center mb-3">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div class="text-center" style="flex: 1;">
+                            {% if jogo.time_casa.escudo %}
+                                <img src="{{ jogo.time_casa.escudo.url }}" 
+                                     alt="{{ jogo.time_casa.nome }}" 
+                                     style="width: 40px; height: 40px; object-fit: contain;">
+                            {% endif %}
+                            <h6 class="mt-2 mb-0">{{ jogo.time_casa.nome }}</h6>
+                        </div>
+                        
+                        <div class="text-center px-3">
+                            {% if jogo.resultado_finalizado %}
+                                <div class="fs-4 fw-bold">
+                                    {{ jogo.gols_casa }} - {{ jogo.gols_visitante }}
+                                </div>
+                            {% else %}
+                                <span class="vs-text">VS</span>
+                            {% endif %}
+                            <small class="text-muted d-block">
+                                {{ jogo.data_hora|date:"d/m H:i" }}
+                            </small>
+                        </div>
+                        
+                        <div class="text-center" style="flex: 1;">
+                            {% if jogo.time_visitante.escudo %}
+                                <img src="{{ jogo.time_visitante.escudo.url }}" 
+                                     alt="{{ jogo.time_visitante.nome }}" 
+                                     style="width: 40px; height: 40px; object-fit: contain;">
+                            {% endif %}
+                            <h6 class="mt-2 mb-0">{{ jogo.time_visitante.nome }}</h6>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Resultado do Jogo -->
+                <div class="text-center mb-3">
+                    {% if jogo.resultado_finalizado %}
+                        {% if jogo.resultado == 'V' %}
+                            <span class="badge bg-success">
+                                <i class="fas fa-home me-1"></i>
+                                Vitória Casa
+                            </span>
+                        {% elif jogo.resultado == 'E' %}
+                            <span class="badge bg-warning">
+                                <i class="fas fa-handshake me-1"></i>
+                                Empate
+                            </span>
+                        {% elif jogo.resultado == 'D' %}
+                            <span class="badge bg-danger">
+                                <i class="fas fa-plane me-1"></i>
+                                Vitória Visitante
+                            </span>
+                        {% endif %}
+                    {% else %}
+                        <span class="badge bg-secondary">
+                            <i class="fas fa-clock me-1"></i>
+                            Não Finalizado
+                        </span>
+                    {% endif %}
+                </div>
+                
+                <!-- Palpite do Usuário (se logado) -->
+                {% if user.is_authenticated %}
+                <div class="border-top pt-3">
+                    {% if jogo.id in palpites_usuario %}
+                        {% with palpite=palpites_usuario|dict_item:jogo.id %}
+                        <div class="text-center">
+                            <h6 class="mb-2">Seu Palpite:</h6>
+                            
+                            <div class="fs-5 fw-bold mb-2">
+                                {{ palpite.gols_casa_palpite }} × {{ palpite.gols_visitante_palpite }}
+                            </div>
+                            
+                            {% if jogo.resultado_finalizado %}
+                                <div class="mt-2">
+                                    {% if palpite.acertou_placar_exato %}
+                                        <div class="resultado-acerto">
+                                            <i class="fas fa-star me-1"></i>
+                                            <strong>PLACAR EXATO! +{{ palpite.pontos_obtidos }} pontos</strong>
+                                        </div>
+                                    {% elif palpite.acertou %}
+                                        <div class="resultado-acerto">
+                                            <i class="fas fa-check-circle me-1"></i>
+                                            <strong>RESULTADO CORRETO! +{{ palpite.pontos_obtidos }} pontos</strong>
+                                        </div>
+                                    {% else %}
+                                        <div class="resultado-erro">
+                                            <i class="fas fa-times-circle me-1"></i>
+                                            <strong>ERROU! 0 pontos</strong>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            {% else %}
+                                <div class="mt-2">
+                                    <small class="text-muted">
+                                        <i class="fas fa-clock me-1"></i>
+                                        Aguardando resultado
+                                    </small>
+                                </div>
+                            {% endif %}
+                        </div>
+                        {% endwith %}
+                    {% else %}
+                        <div class="text-center text-muted">
+                            <i class="fas fa-minus-circle me-1"></i>
+                            <small>Você não fez palpite neste jogo</small>
+                        </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Resumo da Rodada (se usuário logado) -->
+{% if user.is_authenticated and palpites_usuario %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-chart-pie me-2"></i>
+                    Seu Desempenho nesta Rodada
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    {% with total_palpites=palpites_usuario|length %}
+                    {% with acertos=0 %}
+                    {% for jogo_id, palpite in palpites_usuario.items %}
+                        {% if palpite.acertou %}
+                            {% widthratio 1 1 acertos|add:1 as acertos %}
+                        {% endif %}
+                    {% endfor %}
+                    
+                    <div class="col-md-3">
+                        <div class="border-end">
+                            <h4 class="text-primary">{{ total_palpites }}</h4>
+                            <p class="text-muted mb-0">Palpites Feitos</p>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="border-end">
+                            <h4 class="text-success">
+                                {% for jogo_id, palpite in palpites_usuario.items %}
+                                    {% if palpite.acertou %}{{ forloop.counter0|default:0 }}{% endif %}
+                                {% endfor %}
+                            </h4>
+                            <p class="text-muted mb-0">Acertos</p>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="border-end">
+                            <h4 class="text-warning">
+                                {% for jogo_id, palpite in palpites_usuario.items %}
+                                    {% if palpite.pontos_obtidos %}{{ palpite.pontos_obtidos|default:0 }}{% endif %}
+                                {% endfor %}
+                            </h4>
+                            <p class="text-muted mb-0">Pontos Ganhos</p>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <h4 class="text-info">
+                            {% if total_palpites > 0 %}
+                                {% widthratio acertos total_palpites 100 %}%
+                            {% else %}
+                                0%
+                            {% endif %}
+                        </h4>
+                        <p class="text-muted mb-0">Aproveitamento</p>
+                    </div>
+                    {% endwith %}
+                    {% endwith %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Botão para Classificação -->
+<div class="row mt-4">
+    <div class="col-12 text-center">
+        <a href="{% url 'classificacao' %}" class="btn btn-primary btn-lg">
+            <i class="fas fa-trophy me-2"></i>
+            Ver Classificação Geral
+        </a>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Adiciona interatividade aos cards de jogos
+    document.addEventListener('DOMContentLoaded', function() {
+        const cards = document.querySelectorAll('.card');
+        
+        cards.forEach(function(card) {
+            card.addEventListener('mouseenter', function() {
+                this.style.boxShadow = '0 8px 16px rgba(0,0,0,0.2)';
+                this.style.transition = 'box-shadow 0.3s ease';
+            });
+            
+            card.addEventListener('mouseleave', function() {
+                this.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+            });
+        });
+    });
+</script>
+{% endblock %}
