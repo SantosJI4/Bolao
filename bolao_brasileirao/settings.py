@@ -26,7 +26,8 @@ IS_PRODUCTION = os.environ.get('SQUARECLOUD_ENV') == 'production' or 'squareweb.
 SECRET_KEY = "django-insecure-=(w5e#v56#l&@yjdx5#v2i_dmhp-d*i7i1keztz1x8z6bi(orp"
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = not IS_PRODUCTION
+# For debugging CSRF issues temporarily enable debug
+DEBUG = True  # Temporarily enable to see detailed error messages
 
 ALLOWED_HOSTS = ['futamigo.squareweb.app', 'www.futamigo.squareweb.app', '127.0.0.1', 'localhost', '0.0.0.0', '*']
 
@@ -40,15 +41,29 @@ CSRF_TRUSTED_ORIGINS = [
     'http://127.0.0.1:8000',
 ]
 
+# Temporary: More permissive CSRF for debugging
+CSRF_COOKIE_AGE = 31449600  # 1 year
+CSRF_TOKEN_AGE = 31449600  # 1 year
+
 # Additional security settings based on environment
 if IS_PRODUCTION:
     CSRF_COOKIE_SECURE = False  # Square Cloud may not use HTTPS internally
     SESSION_COOKIE_SECURE = False
     CSRF_COOKIE_SAMESITE = 'Lax'
     SESSION_COOKIE_SAMESITE = 'Lax'
+    CSRF_COOKIE_HTTPONLY = False
+    CSRF_USE_SESSIONS = False
+    CSRF_COOKIE_DOMAIN = None
+    # For Square Cloud proxy handling
+    USE_X_FORWARDED_HOST = True
+    USE_X_FORWARDED_PORT = True
 else:
     CSRF_COOKIE_SECURE = False
     SESSION_COOKIE_SECURE = False
+    CSRF_COOKIE_HTTPONLY = False
+
+# CSRF failure handling - more permissive for Square Cloud
+CSRF_FAILURE_VIEW = 'bolao.views.csrf_failure'
 
 
 # Application definition
@@ -68,10 +83,13 @@ MIDDLEWARE = [
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
+    "bolao_brasileirao.middleware.CSRFDebugMiddleware",  # Debug CSRF
+    "bolao_brasileirao.middleware.SafeCSRFMiddleware",  # Recuperação CSRF
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+]
 ]
 
 ROOT_URLCONF = "bolao_brasileirao.urls"

@@ -1,0 +1,84 @@
+{% extends 'bolao/base.html' %}
+{% load static %}
+
+{% block title %}Erro de Segurança - FutAmigo{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card border-warning">
+                <div class="card-header bg-warning text-dark">
+                    <h4 class="mb-0">
+                        <i class="fas fa-shield-alt me-2"></i>
+                        Verificação de Segurança
+                    </h4>
+                </div>
+                <div class="card-body text-center">
+                    <div class="mb-4">
+                        <i class="fas fa-exclamation-triangle text-warning" style="font-size: 4rem;"></i>
+                    </div>
+                    
+                    <h5 class="mb-3">{{ message|default:"Verificação de segurança necessária" }}</h5>
+                    
+                    <p class="text-muted mb-4">
+                        Detectamos um problema de segurança. Isso pode acontecer quando:
+                    </p>
+                    
+                    <ul class="list-unstyled text-start mb-4">
+                        <li class="mb-2">
+                            <i class="fas fa-cookie-bite text-info me-2"></i>
+                            Seus cookies expiraram
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-clock text-info me-2"></i>
+                            A página ficou aberta por muito tempo
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-sync text-info me-2"></i>
+                            O site foi atualizado recentemente
+                        </li>
+                    </ul>
+                    
+                    <div class="d-grid gap-2">
+                        <button onclick="window.location.reload()" class="btn btn-primary btn-lg">
+                            <i class="fas fa-redo me-2"></i>
+                            Recarregar Página
+                        </button>
+                        
+                        <a href="{% url 'home' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-home me-2"></i>
+                            Voltar ao Início
+                        </a>
+                    </div>
+                </div>
+                
+                <div class="card-footer text-muted text-center">
+                    <small>
+                        <i class="fas fa-info-circle me-1"></i>
+                        Se o problema persistir, limpe os cookies do navegador ou entre em contato conosco.
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Script para auto-reload em caso de problema persistente -->
+<script>
+// Tenta recarregar automaticamente após 30 segundos se o usuário não agir
+setTimeout(function() {
+    if (confirm('Deseja recarregar a página automaticamente para resolver o problema?')) {
+        window.location.reload();
+    }
+}, 30000);
+
+// Limpa cookies relacionados ao site se necessário
+function clearSiteCookies() {
+    document.cookie.split(";").forEach(function(c) { 
+        document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
+    });
+    window.location.reload();
+}
+</script>
+{% endblock %}

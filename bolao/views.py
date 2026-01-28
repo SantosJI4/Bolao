@@ -6,6 +6,7 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from django.utils import timezone
 from django.db.models import Q, F
+from django.conf import settings
 from .models import Rodada, Jogo, Palpite, Participante, Classificacao, Time
 from .forms import PerfilParticipanteForm
 
@@ -261,3 +262,40 @@ def editar_perfil(request):
     }
     
     return render(request, 'bolao/editar_perfil.html', context)
+
+
+def csrf_failure(request, reason=""):
+    """
+    View personalizada para falhas de CSRF
+    Não mata a produção, oferece uma experiência amigável
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # Log do erro para debug
+    logger.warning(f"CSRF Failure: {reason}")
+    logger.warning(f"Path: {request.path}")
+    logger.warning(f"Method: {request.method}")
+    logger.warning(f"User-Agent: {request.META.get('HTTP_USER_AGENT', 'Unknown')}")
+    
+    # Contexto para o template
+    context = {
+        'message': 'Verificação de segurança necessária. Recarregue a página.',
+        'reason': reason,
+        'path': request.path,
+        'can_retry': True,
+    }
+    
+    # Em desenvolvimento, mostra detalhes
+    if settings.DEBUG:
+        context.update({
+            'debug_info': {
+                'reason': reason,
+                'path': request.path,
+                'method': request.method,
+                'headers': dict(request.headers),
+            }
+        })
+    
+    # Renderiza página amigável em vez de erro brutal
+    return render(request, 'bolao/csrf_error.html', context, status=403)
