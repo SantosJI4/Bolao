@@ -23,9 +23,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = "django-insecure-=(w5e#v56#l&@yjdx5#v2i_dmhp-d*i7i1keztz1x8z6bi(orp"
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
-ALLOWED_HOSTS = ['futamigo.squareweb.app', 'www.futamigo.squareweb.app', '127.0.0.1', 'localhost']
+ALLOWED_HOSTS = ['futamigo.squareweb.app', 'www.futamigo.squareweb.app', '127.0.0.1', 'localhost', '0.0.0.0', '*']
 
 
 # Application definition
@@ -135,3 +135,7 @@ X_FRAME_OPTIONS = 'DENY'
 
 # Default field for auto fields
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Square Cloud / Production settings
+import os
+PORT = int(os.environ.get('PORT', 80))

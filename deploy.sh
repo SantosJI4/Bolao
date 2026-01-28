@@ -1,7 +1,7 @@
 #!/bin/bash
-# FutAmigo - Deploy Script
-echo "🚀 FutAmigo - Deploy Checklist"
-echo "================================"
+# FutAmigo - Deploy Script para Square Cloud
+echo "🚀 FutAmigo - Deploy para Square Cloud"
+echo "======================================"
 
 # 1. Verificar se está em produção
 echo "📋 Verificando configurações..."
@@ -27,5 +27,9 @@ echo ""
 echo "✅ Deploy preparado com sucesso!"
 echo "🌐 Site: https://futamigo.squareweb.app"
 echo "🔧 Admin: https://futamigo.squareweb.app/admin"
+echo "🚀 Para executar: python manage.py runserver 0.0.0.0:80"
 
-# Para executar em produção, altere DEBUG=False no settings.py
+# Comando para rodar em produção no Square Cloud
+echo ""
+echo "📌 Square Cloud Configuration:"
+echo "START=python manage.py runserver 0.0.0.0:80"
