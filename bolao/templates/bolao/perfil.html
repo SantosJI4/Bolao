@@ -144,47 +144,48 @@
             </div>
             <div class="card-body">
                 <div class="table-responsive">
-                    <table class="table table-hover">
+                    <table class="table table-hover table-mobile">
                         <thead>
                             <tr>
-                                <th>Data</th>
+                                <th class="mobile-hide">Data</th>
                                 <th>Jogo</th>
                                 <th>Palpite</th>
-                                <th>Resultado</th>
+                                <th class="mobile-hide">Resultado</th>
                                 <th>Status</th>
-                                <th>Pontos</th>
+                                <th class="text-center">Pts</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for palpite in palpites_recentes %}
                             <tr>
-                                <td>
+                                <td class="mobile-hide">
                                     <small class="text-muted">
                                         {{ palpite.data_palpite|date:"d/m/Y H:i" }}
                                     </small>
                                 </td>
                                 <td>
                                     <div class="d-flex align-items-center">
-                                        <small>
+                                        <small class="mobile-compact">
                                             {{ palpite.jogo.time_casa.nome }}
-                                            <span class="mx-2">×</span>
+                                            <span class="mx-1">×</span>
                                             {{ palpite.jogo.time_visitante.nome }}
                                         </small>
                                     </div>
-                                    <small class="text-muted d-block">
-                                        Rodada {{ palpite.jogo.rodada.numero }}
+                                    <small class="text-muted d-block mobile-compact">
+                                        R{{ palpite.jogo.rodada.numero }}
+                                        <span class="d-inline d-md-none ms-2">| {{ palpite.data_palpite|date:"d/m" }}</span>
                                     </small>
                                 </td>
                                 <td>
                                     {% if palpite.resultado_palpite == 'V' %}
-                                        <span class="badge bg-success">Casa</span>
+                                        <span class="badge bg-success badge-mobile">Casa</span>
                                     {% elif palpite.resultado_palpite == 'E' %}
-                                        <span class="badge bg-warning">Empate</span>
+                                        <span class="badge bg-warning badge-mobile">Empate</span>
                                     {% elif palpite.resultado_palpite == 'D' %}
-                                        <span class="badge bg-danger">Visitante</span>
+                                        <span class="badge bg-danger badge-mobile">Visita</span>
                                     {% endif %}
                                 </td>
-                                <td>
+                                <td class="mobile-hide">
                                     {% if palpite.jogo.resultado_finalizado %}
                                         <small>
                                             {{ palpite.jogo.gols_casa }} - {{ palpite.jogo.gols_visitante }}
@@ -204,26 +205,40 @@
                                 <td>
                                     {% if palpite.jogo.resultado_finalizado %}
                                         {% if palpite.acertou %}
-                                            <span class="text-success fw-bold">
+                                            <span class="text-success fw-bold d-none d-md-inline">
                                                 <i class="fas fa-check-circle me-1"></i>
                                                 ACERTO
                                             </span>
+                                            <span class="text-success fw-bold d-inline d-md-none">
+                                                <i class="fas fa-check-circle"></i>
+                                            </span>
                                         {% else %}
-                                            <span class="text-danger fw-bold">
+                                            <span class="text-danger fw-bold d-none d-md-inline">
                                                 <i class="fas fa-times-circle me-1"></i>
                                                 ERRO
                                             </span>
+                                            <span class="text-danger fw-bold d-inline d-md-none">
+                                                <i class="fas fa-times-circle"></i>
+                                            </span>
                                         {% endif %}
+                                        <div class="d-block d-md-none mt-1">
+                                            <small class="text-muted mobile-compact">
+                                                {{ palpite.jogo.gols_casa }}-{{ palpite.jogo.gols_visitante }}
+                                            </small>
+                                        </div>
                                     {% else %}
-                                        <span class="text-muted">
+                                        <span class="text-muted d-none d-md-inline">
                                             <i class="fas fa-clock me-1"></i>
                                             Aguardando
                                         </span>
+                                        <span class="text-muted d-inline d-md-none">
+                                            <i class="fas fa-clock"></i>
+                                        </span>
                                     {% endif %}
                                 </td>
-                                <td>
+                                <td class="text-center">
                                     {% if palpite.jogo.resultado_finalizado %}
-                                        <span class="badge bg-primary">
+                                        <span class="badge bg-primary badge-mobile">
                                             +{{ palpite.pontos_obtidos }}
                                         </span>
                                     {% else %}

@@ -58,37 +58,37 @@
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover mb-0">
+                    <table class="table table-hover mb-0 table-mobile">
                         <thead class="table-light">
                             <tr>
-                                <th width="80">Posição</th>
+                                <th width="60" class="text-center">Pos</th>
                                 <th>Participante</th>
-                                <th width="100" class="text-center">Pontos</th>
-                                <th width="100" class="text-center">Acertos</th>
-                                <th width="100" class="text-center">Empates</th>
-                                <th width="100" class="text-center">Vitórias</th>
-                                <th width="100" class="text-center">%</th>
+                                <th width="80" class="text-center">Pontos</th>
+                                <th width="80" class="text-center mobile-hide">Acertos</th>
+                                <th width="80" class="text-center mobile-hide">Empates</th>
+                                <th width="80" class="text-center mobile-hide">Vitórias</th>
+                                <th width="70" class="text-center">%</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for classificacao in classificacoes %}
                             <tr {% if classificacao.posicao <= 3 %}class="classificacao-podio posicao-{{ classificacao.posicao }}"{% endif %}>
-                                <td class="align-middle">
-                                    <div class="d-flex align-items-center">
+                                <td class="align-middle text-center">
+                                    <div class="d-flex align-items-center justify-content-center">
                                         {% if classificacao.posicao == 1 %}
-                                            <i class="fas fa-crown text-warning me-2"></i>
+                                            <i class="fas fa-crown text-warning me-1"></i>
                                         {% elif classificacao.posicao == 2 %}
-                                            <i class="fas fa-medal text-secondary me-2"></i>
+                                            <i class="fas fa-medal text-secondary me-1"></i>
                                         {% elif classificacao.posicao == 3 %}
-                                            <i class="fas fa-award text-warning me-2"></i>
+                                            <i class="fas fa-award text-warning me-1"></i>
                                         {% endif %}
-                                        <strong>{{ classificacao.posicao }}º</strong>
+                                        <strong class="mobile-compact">{{ classificacao.posicao }}º</strong>
                                     </div>
                                 </td>
                                 <td class="align-middle">
                                     <a href="{% url 'perfil_participante' classificacao.participante.id %}" 
                                        class="text-decoration-none">
-                                        <div class="d-flex align-items-center">
+                                        <div class="d-flex align-items-center participante-info">
                                             {% if classificacao.participante.foto_perfil %}
                                                 <img src="{{ classificacao.participante.foto_perfil.url }}" 
                                                      alt="Foto de {{ classificacao.participante.nome_exibicao }}"
@@ -100,29 +100,38 @@
                                                     <i class="fas fa-user text-muted"></i>
                                                 </div>
                                             {% endif %}
-                                            <strong>{{ classificacao.participante.nome_exibicao }}</strong>
-                                            {% if user.is_authenticated and user.participante == classificacao.participante %}
-                                                <span class="badge bg-primary ms-2">Você</span>
-                                            {% endif %}
+                                            <div>
+                                                <strong class="mobile-compact">{{ classificacao.participante.nome_exibicao }}</strong>
+                                                {% if user.is_authenticated and user.participante == classificacao.participante %}
+                                                    <span class="badge bg-primary ms-1 badge-mobile">Você</span>
+                                                {% endif %}
+                                                <div class="d-block d-md-none mobile-stack mt-1">
+                                                    <small class="text-muted">
+                                                        Acertos: <span class="text-success fw-bold">{{ classificacao.acertos_totais }}</span> |
+                                                        Empates: <span class="text-warning fw-bold">{{ classificacao.empates_acertados }}</span> |
+                                                        Vitórias: <span class="text-info fw-bold">{{ classificacao.vitorias_acertadas }}</span>
+                                                    </small>
+                                                </div>
+                                            </div>
                                         </div>
                                     </a>
                                 </td>
                                 <td class="text-center align-middle">
-                                    <span class="badge bg-primary fs-6">
+                                    <span class="badge bg-primary badge-mobile">
                                         {{ classificacao.pontos_totais }}
                                     </span>
                                 </td>
-                                <td class="text-center align-middle">
+                                <td class="text-center align-middle mobile-hide">
                                     <span class="text-success fw-bold">
                                         {{ classificacao.acertos_totais }}
                                     </span>
                                 </td>
-                                <td class="text-center align-middle">
+                                <td class="text-center align-middle mobile-hide">
                                     <span class="text-warning fw-bold">
                                         {{ classificacao.empates_acertados }}
                                     </span>
                                 </td>
-                                <td class="text-center align-middle">
+                                <td class="text-center align-middle mobile-hide">
                                     <span class="text-info fw-bold">
                                         {{ classificacao.vitorias_acertadas }}
                                     </span>
