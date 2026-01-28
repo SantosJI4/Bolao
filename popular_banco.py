@@ -131,7 +131,7 @@ def criar_rodada_exemplo(times):
     print(f"Rodada criada: {rodada}")
 
 def main():
-    print("🏆 Populando banco de dados do Bolão Brasileirão...")
+    print("🏆 Populando banco de dados do FutAmigo...")
     print("=" * 50)
     
     # Cria superusuário

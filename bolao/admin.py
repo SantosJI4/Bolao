@@ -365,6 +365,6 @@ class ClassificacaoAdmin(admin.ModelAdmin):
 
 
 # Customizações do admin site
-admin.site.site_header = "Bolão Brasileirão - Painel Administrativo"
-admin.site.site_title = "Bolão Brasileirão"
+admin.site.site_header = "FutAmigo - Painel Administrativo"
+admin.site.site_title = "FutAmigo"
 admin.site.index_title = "Gerenciamento do Bolão"
