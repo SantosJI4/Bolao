@@ -11,10 +11,13 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 from pathlib import Path
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Detect if running in production (Square Cloud)
+IS_PRODUCTION = os.environ.get('SQUARECLOUD_ENV') == 'production' or 'squareweb.app' in os.environ.get('HOST', '')
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
@@ -23,9 +26,29 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = "django-insecure-=(w5e#v56#l&@yjdx5#v2i_dmhp-d*i7i1keztz1x8z6bi(orp"
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = not IS_PRODUCTION
 
 ALLOWED_HOSTS = ['futamigo.squareweb.app', 'www.futamigo.squareweb.app', '127.0.0.1', 'localhost', '0.0.0.0', '*']
+
+# CSRF settings for production
+CSRF_TRUSTED_ORIGINS = [
+    'https://futamigo.squareweb.app',
+    'https://www.futamigo.squareweb.app',
+    'http://futamigo.squareweb.app',
+    'http://www.futamigo.squareweb.app',
+    'http://localhost:8000',
+    'http://127.0.0.1:8000',
+]
+
+# Additional security settings based on environment
+if IS_PRODUCTION:
+    CSRF_COOKIE_SECURE = False  # Square Cloud may not use HTTPS internally
+    SESSION_COOKIE_SECURE = False
+    CSRF_COOKIE_SAMESITE = 'Lax'
+    SESSION_COOKIE_SAMESITE = 'Lax'
+else:
+    CSRF_COOKIE_SECURE = False
+    SESSION_COOKIE_SECURE = False
 
 
 # Application definition
@@ -117,7 +140,10 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = "/static/"
+
+# Para desenvolvimento e produção (necessário para favicon)
 STATICFILES_DIRS = [BASE_DIR / "static"]
+
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # Media files
@@ -129,10 +155,10 @@ LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/'
 
-# Security settings for production
+# Security settings for production (relaxed for Square Cloud)
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
-X_FRAME_OPTIONS = 'DENY'
+X_FRAME_OPTIONS = 'SAMEORIGIN'  # Changed from DENY to SAMEORIGIN
 
 # Default field for auto fields
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
