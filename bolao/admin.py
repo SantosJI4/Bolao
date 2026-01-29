@@ -5,7 +5,7 @@ from django.utils.html import format_html
 from django.urls import reverse, path
 from django.shortcuts import redirect, render
 from django.contrib import messages
-from django.http import HttpResponseRedirect
+from django.http import HttpResponseRedirect, JsonResponse
 from django import forms
 from .models import Time, Participante, Rodada, Jogo, Palpite, Classificacao
 import re
@@ -114,7 +114,7 @@ Exemplos:
             palpites_lista = [p.strip() for p in palpites_text.split('\n') if p.strip()]
         
         # Obter jogos da rodada
-        jogos = list(rodada.jogos.all().order_by('data_hora'))
+        jogos = list(rodada.jogo_set.all().order_by('data_hora'))
         
         # Validar cada palpite
         palpites_validados = []
@@ -285,6 +285,7 @@ class ParticipanteAdmin(admin.ModelAdmin):
         urls = super().get_urls()
         custom_urls = [
             path('palpites-lote/', self.admin_site.admin_view(self.palpites_lote_view), name='bolao_participante_palpites_lote'),
+            path('jogos-rodada/', self.admin_site.admin_view(self.jogos_rodada_view), name='bolao_participante_jogos_rodada'),
         ]
         return custom_urls + urls
     
@@ -375,6 +376,37 @@ class ParticipanteAdmin(admin.ModelAdmin):
         }
         
         return render(request, 'admin/palpites_lote.html', context)
+    
+    def jogos_rodada_view(self, request):
+        """API para buscar jogos de uma rodada via AJAX"""
+        rodada_id = request.GET.get('rodada_id')
+        
+        if not rodada_id:
+            return JsonResponse({'error': 'rodada_id é obrigatório'}, status=400)
+        
+        try:
+            rodada = Rodada.objects.get(id=rodada_id)
+            jogos = rodada.jogo_set.all().order_by('data_hora', 'id')
+            
+            jogos_data = []
+            for jogo in jogos:
+                jogos_data.append({
+                    'id': jogo.id,
+                    'time_casa': jogo.time_casa.nome,
+                    'time_visitante': jogo.time_visitante.nome,
+                    'data_hora': jogo.data_hora.strftime('%d/%m %H:%M') if jogo.data_hora else 'Data não definida'
+                })
+            
+            return JsonResponse({
+                'jogos': jogos_data,
+                'rodada': rodada.nome,
+                'total': len(jogos_data)
+            })
+            
+        except Rodada.DoesNotExist:
+            return JsonResponse({'error': 'Rodada não encontrada'}, status=404)
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
 
 
 class JogoInline(admin.TabularInline):

@@ -34,13 +34,19 @@
                                 </div>
                             </div>
                             <div class="col-md-6">
-                                <div class="form-group mb-3">
-                                    <label for="{{ form.rodada.id_for_label }}">{{ form.rodada.label }}</label>
-                                    {{ form.rodada }}
-                                    {% if form.rodada.help_text %}
-                                        <small class="form-text text-muted">{{ form.rodada.help_text }}</small>
-                                    {% endif %}
-                                </div>
+                        <div class="form-group mb-3">
+                            <label for="{{ form.rodada.id_for_label }}">{{ form.rodada.label }}</label>
+                            {{ form.rodada }}
+                            {% if form.rodada.help_text %}
+                                <small class="form-text text-muted">{{ form.rodada.help_text }}</small>
+                            {% endif %}
+                            
+                            <!-- Info da rodada selecionada -->
+                            <div id="rodada-info" class="mt-2 p-2 bg-light rounded" style="display: none;">
+                                <strong>Jogos da rodada:</strong>
+                                <div id="jogos-lista"></div>
+                            </div>
+                        </div>
                             </div>
                         </div>
                         
@@ -81,12 +87,20 @@
                 </div>
             </div>
             
-            <!-- Ajuda -->
+                    <!-- Ajuda -->
             <div class="card mt-4">
                 <div class="card-header">
-                    <h6>📋 Formatos Aceitos</h6>
+                    <h6>📋 Como Usar - Palpites por Rodada</h6>
                 </div>
                 <div class="card-body">
+                    <div class="alert alert-primary">
+                        <strong>🎯 Passo a Passo:</strong><br>
+                        1. <strong>Selecione o Participante</strong> (já selecionado)<br>
+                        2. <strong>Escolha a Rodada</strong> - verá os jogos abaixo<br>
+                        3. <strong>Digite os Palpites</strong> na ordem dos jogos<br>
+                        4. <strong>Clique em "Inserir Palpites"</strong>
+                    </div>
+                    
                     <div class="row">
                         <div class="col-md-4">
                             <h6 class="text-primary">Formato 1: Apenas placares</h6>
@@ -187,4 +201,43 @@ small {
     font-size: 0.8rem;
 }
 </style>
+
+<script>
+// Script para mostrar jogos da rodada selecionada
+document.addEventListener('DOMContentLoaded', function() {
+    const rodadaSelect = document.getElementById('{{ form.rodada.id_for_label }}');
+    const rodadaInfo = document.getElementById('rodada-info');
+    const jogosLista = document.getElementById('jogos-lista');
+    
+    if (rodadaSelect) {
+        rodadaSelect.addEventListener('change', function() {
+            const rodadaId = this.value;
+            if (rodadaId) {
+                // Fetch dos jogos da rodada
+                fetch(`/admin/bolao/participante/jogos-rodada/?rodada_id=${rodadaId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.jogos && data.jogos.length > 0) {
+                            let jogosHtml = '<ol>';
+                            data.jogos.forEach((jogo, index) => {
+                                jogosHtml += `<li><small><strong>${jogo.time_casa}</strong> vs <strong>${jogo.time_visitante}</strong> - ${jogo.data_hora}</small></li>`;
+                            });
+                            jogosHtml += '</ol>';
+                            jogosLista.innerHTML = jogosHtml;
+                            rodadaInfo.style.display = 'block';
+                        } else {
+                            rodadaInfo.style.display = 'none';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Erro ao buscar jogos:', error);
+                        rodadaInfo.style.display = 'none';
+                    });
+            } else {
+                rodadaInfo.style.display = 'none';
+            }
+        });
+    }
+});
+</script>
 {% endblock %}
