@@ -183,9 +183,9 @@ class Palpite(models.Model):
         # Pontuação baseada no acerto dos gols
         if (self.gols_casa_palpite == self.jogo.gols_casa and 
             self.gols_visitante_palpite == self.jogo.gols_visitante):
-            return 5  # Placar exato = 5 pontos
+            return 3  # Placar exato = 3 pontos
         elif self.resultado_palpite == self.jogo.resultado:
-            return 3  # Acertou apenas o resultado = 3 pontos
+            return 1  # Acertou apenas o resultado (quem ganha) = 1 ponto
         else:
             return 0  # Errou = 0 pontos
     
