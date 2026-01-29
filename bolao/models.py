@@ -34,6 +34,7 @@ class Participante(models.Model):
     nome_exibicao = models.CharField(max_length=100)
     foto_perfil = models.ImageField(upload_to=redimensionar_imagem_perfil, blank=True, null=True)
     ativo = models.BooleanField(default=True)
+    invisivel = models.BooleanField(default=False, help_text='Se marcado, não aparecerá na classificação')
     data_cadastro = models.DateTimeField(auto_now_add=True)
     
     class Meta:
@@ -222,8 +223,7 @@ class Classificacao(models.Model):
     posicao = models.PositiveIntegerField()
     pontos_totais = models.PositiveIntegerField(default=0)
     acertos_totais = models.PositiveIntegerField(default=0)
-    empates_acertados = models.PositiveIntegerField(default=0)
-    vitorias_acertadas = models.PositiveIntegerField(default=0)
+    ultimo_saldo = models.IntegerField(default=0)  # Saldo da última rodada
     ultima_atualizacao = models.DateTimeField(auto_now=True)
     
     class Meta:
@@ -237,12 +237,17 @@ class Classificacao(models.Model):
     @classmethod
     def atualizar_classificacao(cls):
         """Método para atualizar toda a classificação"""
-        from django.db.models import Count, Q
+        from django.db.models import Count, Q, F
         
         # Limpa classificação atual
         cls.objects.all().delete()
         
-        participantes = Participante.objects.filter(ativo=True)
+        # Pega a última rodada com jogos finalizados
+        ultima_rodada = Rodada.objects.filter(
+            jogo__resultado_finalizado=True
+        ).order_by('-numero').first()
+        
+        participantes = Participante.objects.filter(ativo=True, invisivel=False)
         classificacao_data = []
         
         for participante in participantes:
@@ -252,31 +257,31 @@ class Classificacao(models.Model):
             )
             
             pontos_totais = sum(palpite.pontos_obtidos for palpite in palpites_finalizados)
-            acertos_totais = palpites_finalizados.filter(
-                resultado_palpite__in=['V', 'E', 'D']
-            ).count()
+            acertos_totais = sum(1 for palpite in palpites_finalizados if palpite.acertou)
             
-            # Conta acertos específicos
-            empates_acertados = palpites_finalizados.filter(
-                resultado_palpite='E',
-                jogo__gols_casa=models.F('jogo__gols_visitante')
-            ).count()
-            
-            vitorias_acertadas = palpites_finalizados.filter(
-                Q(resultado_palpite='V', jogo__gols_casa__gt=models.F('jogo__gols_visitante')) |
-                Q(resultado_palpite='D', jogo__gols_casa__lt=models.F('jogo__gols_visitante'))
-            ).count()
+            # Calcula saldo da última rodada (pontos ganhos menos pontos perdidos)
+            ultimo_saldo = 0
+            if ultima_rodada:
+                palpites_ultima_rodada = Palpite.objects.filter(
+                    participante=participante,
+                    jogo__rodada=ultima_rodada,
+                    jogo__resultado_finalizado=True
+                )
+                pontos_ultima_rodada = sum(palpite.pontos_obtidos for palpite in palpites_ultima_rodada)
+                total_jogos_ultima_rodada = palpites_ultima_rodada.count()
+                # Saldo = pontos ganhos - pontos que podia ter ganho
+                ultimo_saldo = pontos_ultima_rodada - (total_jogos_ultima_rodada * 0)  # Simplificado: pontos ganhos
+                ultimo_saldo = pontos_ultima_rodada  # Por enquanto, só os pontos da última rodada
             
             classificacao_data.append({
                 'participante': participante,
                 'pontos_totais': pontos_totais,
                 'acertos_totais': acertos_totais,
-                'empates_acertados': empates_acertados,
-                'vitorias_acertadas': vitorias_acertadas,
+                'ultimo_saldo': ultimo_saldo,
             })
         
-        # Ordena por pontos (decrescente)
-        classificacao_data.sort(key=lambda x: x['pontos_totais'], reverse=True)
+        # Ordena por pontos (decrescente), depois por acertos (decrescente)
+        classificacao_data.sort(key=lambda x: (x['pontos_totais'], x['acertos_totais']), reverse=True)
         
         # Cria registros de classificação
         for posicao, data in enumerate(classificacao_data, 1):

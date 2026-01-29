@@ -1,15 +1,15 @@
 {% extends 'bolao/base.html' %}
 {% load bolao_extras %}
 
-{% block title %}Palpites - {{ rodada }} - FutAmigo{% endblock %}
+{% block title %}{% if pode_palpitar %}Palpites{% else %}Visualizar Palpites{% endif %} - {{ rodada }} - FutAmigo{% endblock %}
 
 {% block content %}
 <div class="row">
     <div class="col-12">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h1>
-                <i class="fas fa-edit me-2"></i>
-                Palpites - {{ rodada }}
+                <i class="fas fa-{% if pode_palpitar %}edit{% else %}eye{% endif %} me-2"></i>
+                {% if pode_palpitar %}Palpites{% else %}Visualizar Palpites{% endif %} - {{ rodada }}
             </h1>
             <a href="{% url 'home' %}" class="btn btn-outline-secondary">
                 <i class="fas fa-arrow-left me-1"></i>
@@ -17,6 +17,7 @@
             </a>
         </div>
         
+        {% if pode_palpitar %}
         <div class="alert alert-info" role="alert">
             <h5 class="alert-heading">
                 <i class="fas fa-clock me-2"></i>
@@ -29,9 +30,22 @@
                 Você pode alterar seus palpites quantas vezes quiser até o prazo final.
             </p>
         </div>
+        {% else %}
+        <div class="alert alert-warning" role="alert">
+            <h5 class="alert-heading">
+                <i class="fas fa-lock me-2"></i>
+                Período de palpites encerrado
+            </h5>
+            <p class="mb-0">
+                O prazo para palpitar foi até {{ rodada.data_fim|date:"d/m/Y às H:i" }}. Agora você pode visualizar todos os palpites.
+            </p>
+        </div>
+        {% endif %}
     </div>
 </div>
 
+{% if pode_palpitar %}
+<!-- FORMULÁRIO DE PALPITES -->
 <form method="post">
     {% csrf_token %}
     
@@ -154,36 +168,197 @@
     </div>
 </form>
 
-{% endblock %}
+{% else %}
+<!-- VISUALIZAÇÃO DE PALPITES - ABAS -->
+<div class="row">
+    <div class="col-12">
+        <!-- Navegação por abas -->
+        <ul class="nav nav-tabs" id="palpitesTab" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="meus-palpites-tab" data-bs-toggle="tab" data-bs-target="#meus-palpites" type="button" role="tab" aria-controls="meus-palpites" aria-selected="true">
+                    <i class="fas fa-user me-2"></i>
+                    Meus Palpites
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="todos-palpites-tab" data-bs-toggle="tab" data-bs-target="#todos-palpites" type="button" role="tab" aria-controls="todos-palpites" aria-selected="false">
+                    <i class="fas fa-table me-2"></i>
+                    Todos os Palpites
+                </button>
+            </li>
+        </ul>
+        
+        <!-- Conteúdo das abas -->
+        <div class="tab-content" id="palpitesTabContent">
+            <!-- ABA 1: MEUS PALPITES -->
+            <div class="tab-pane fade show active" id="meus-palpites" role="tabpanel" aria-labelledby="meus-palpites-tab">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-user me-2"></i>
+                            Seus Palpites - {{ participante.nome_exibicao }}
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            {% for jogo in jogos %}
+                            <div class="col-md-6 col-lg-4 mb-4">
+                                <div class="card border-secondary">
+                                    <div class="card-body">
+                                        <!-- Cabeçalho do jogo -->
+                                        <div class="text-center mb-3">
+                                            <div class="d-flex align-items-center justify-content-between">
+                                                <div class="text-center" style="flex: 1;">
+                                                    {% if jogo.time_casa.escudo %}
+                                                        <img src="{{ jogo.time_casa.escudo.url }}" 
+                                                             alt="{{ jogo.time_casa.nome }}" 
+                                                             style="width: 30px; height: 30px; object-fit: contain;">
+                                                    {% endif %}
+                                                    <small class="d-block mt-1">{{ jogo.time_casa.sigla }}</small>
+                                                </div>
+                                                
+                                                <div class="text-center px-2">
+                                                    <small class="text-muted d-block">{{ jogo.data_hora|date:"d/m H:i" }}</small>
+                                                    <span class="text-muted">VS</span>
+                                                </div>
+                                                
+                                                <div class="text-center" style="flex: 1;">
+                                                    {% if jogo.time_visitante.escudo %}
+                                                        <img src="{{ jogo.time_visitante.escudo.url }}" 
+                                                             alt="{{ jogo.time_visitante.nome }}" 
+                                                             style="width: 30px; height: 30px; object-fit: contain;">
+                                                    {% endif %}
+                                                    <small class="d-block mt-1">{{ jogo.time_visitante.sigla }}</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Palpite -->
+                                        {% with palpite=palpites_existentes|dict_item:jogo.id %}
+                                        <div class="text-center">
+                                            {% if palpite %}
+                                                <h4 class="text-primary mb-2">
+                                                    {{ palpite.gols_casa_palpite }} × {{ palpite.gols_visitante_palpite }}
+                                                </h4>
+                                                
+                                                <!-- Resultado real se disponível -->
+                                                {% if jogo.resultado_finalizado %}
+                                                    <div class="mb-2">
+                                                        <small class="text-muted">Resultado real:</small>
+                                                        <div class="fw-bold">{{ jogo.gols_casa }} × {{ jogo.gols_visitante }}</div>
+                                                    </div>
+                                                    
+                                                    <!-- Pontuação -->
+                                                    <div class="mt-2">
+                                                        {% if palpite.pontos_obtidos == 3 %}
+                                                            <span class="badge bg-success">Placar Exato - 3 pontos</span>
+                                                        {% elif palpite.pontos_obtidos == 1 %}
+                                                            <span class="badge bg-warning text-dark">Acertou Vencedor - 1 ponto</span>
+                                                        {% else %}
+                                                            <span class="badge bg-danger">Não pontuou</span>
+                                                        {% endif %}
+                                                    </div>
+                                                {% endif %}
+                                            {% else %}
+                                                <div class="text-muted">
+                                                    <i class="fas fa-exclamation-triangle me-2"></i>
+                                                    Sem palpite
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                        {% endwith %}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- ABA 2: TODOS OS PALPITES -->
+            <div class="tab-pane fade" id="todos-palpites" role="tabpanel" aria-labelledby="todos-palpites-tab">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-table me-2"></i>
+                            Planilha de Todos os Palpites
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-sm">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th style="min-width: 200px;">Jogo</th>
+                                        {% for participante in participantes_ativos %}
+                                        <th class="text-center" style="min-width: 80px;">
+                                            {{ participante.nome_exibicao|truncatechars:10 }}
+                                        </th>
+                                        {% endfor %}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for jogo in jogos %}
+                                    <tr>
+                                        <td class="fw-bold">
+                                            <div class="d-flex align-items-center">
+                                                <div class="me-2">
+                                                    {% if jogo.time_casa.escudo %}
+                                                        <img src="{{ jogo.time_casa.escudo.url }}" 
+                                                             style="width: 20px; height: 20px; object-fit: contain;">
+                                                    {% endif %}
+                                                </div>
+                                                <div class="me-2">{{ jogo.time_casa.sigla }}</div>
+                                                <div class="text-muted me-2">×</div>
+                                                <div class="me-2">{{ jogo.time_visitante.sigla }}</div>
+                                                <div>
+                                                    {% if jogo.time_visitante.escudo %}
+                                                        <img src="{{ jogo.time_visitante.escudo.url }}" 
+                                                             style="width: 20px; height: 20px; object-fit: contain;">
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                            {% if jogo.resultado_finalizado %}
+                                                <small class="text-success d-block">
+                                                    Real: {{ jogo.gols_casa }} × {{ jogo.gols_visitante }}
+                                                </small>
+                                            {% endif %}
+                                        </td>
+                                        
+                                        {% for participante in participantes_ativos %}
+                                        <td class="text-center">
+                                            {% with palpite=todos_palpites|dict_item:jogo.id|dict_item:participante.id %}
+                                            {% if palpite %}
+                                                <div class="fw-bold">
+                                                    {{ palpite.gols_casa_palpite }}×{{ palpite.gols_visitante_palpite }}
+                                                </div>
+                                                {% if jogo.resultado_finalizado %}
+                                                    {% if palpite.pontos_obtidos == 3 %}
+                                                        <small class="text-success">3pts</small>
+                                                    {% elif palpite.pontos_obtidos == 1 %}
+                                                        <small class="text-warning">1pt</small>
+                                                    {% else %}
+                                                        <small class="text-danger">0pt</small>
+                                                    {% endif %}
+                                                {% endif %}
+                                            {% else %}
+                                                <span class="text-muted">—</span>
+                                            {% endif %}
+                                            {% endwith %}
+                                        </td>
+                                        {% endfor %}
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
 
-{% block extra_js %}
-<script>
-    // Adiciona comportamento visual aos botões de palpite
-    document.addEventListener('DOMContentLoaded', function() {
-        const radioButtons = document.querySelectorAll('input[type="radio"]');
-        
-        radioButtons.forEach(function(radio) {
-            radio.addEventListener('change', function() {
-                // Remove active class de todos os labels do mesmo grupo
-                const groupName = this.name;
-                const groupRadios = document.querySelectorAll(`input[name="${groupName}"]`);
-                
-                groupRadios.forEach(function(groupRadio) {
-                    const label = document.querySelector(`label[for="${groupRadio.id}"]`);
-                    label.classList.remove('active');
-                });
-                
-                // Adiciona active class no label selecionado
-                const selectedLabel = document.querySelector(`label[for="${this.id}"]`);
-                selectedLabel.classList.add('active');
-            });
-        });
-        
-        // Ativa labels já selecionados
-        document.querySelectorAll('input[type="radio"]:checked').forEach(function(radio) {
-            const label = document.querySelector(`label[for="${radio.id}"]`);
-            label.classList.add('active');
-        });
-    });
-</script>
 {% endblock %}

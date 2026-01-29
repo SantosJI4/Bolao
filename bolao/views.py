@@ -37,7 +37,7 @@ def home(request):
 
 @login_required
 def rodada_palpites(request, rodada_id):
-    """Página para fazer palpites da rodada atual"""
+    """Página para fazer palpites ou visualizar palpites da rodada"""
     rodada = get_object_or_404(Rodada, id=rodada_id)
     
     # Verifica se o usuário tem um participante associado
@@ -47,14 +47,27 @@ def rodada_palpites(request, rodada_id):
         messages.error(request, "Você não está cadastrado como participante do bolão. Entre em contato com o administrador.")
         return redirect('home')
     
-    # Verifica se ainda pode palpitar
-    if not rodada.pode_palpitar:
-        messages.error(request, "Esta rodada não está disponível para palpites.")
-        return redirect('home')
+    # Se não pode mais palpitar, muda para modo visualização
+    pode_palpitar = rodada.pode_palpitar
     
     jogos = rodada.jogo_set.all().order_by('data_hora')
     
-    if request.method == 'POST':
+    # Buscar palpites existentes do usuário
+    palpites_existentes = {}
+    for palpite in Palpite.objects.filter(participante=participante, jogo__rodada=rodada):
+        palpites_existentes[palpite.jogo.id] = palpite
+    
+    # Se não pode palpitar, buscar todos os palpites para a planilha
+    todos_palpites = {}
+    participantes_ativos = []
+    if not pode_palpitar:
+        participantes_ativos = Participante.objects.filter(ativo=True).order_by('nome_exibicao')
+        for jogo in jogos:
+            todos_palpites[jogo.id] = {}
+            for palpite in Palpite.objects.filter(jogo=jogo):
+                todos_palpites[jogo.id][palpite.participante.id] = palpite
+    
+    if request.method == 'POST' and pode_palpitar:
         todos_palpites_validos = True
         palpites_salvos = []
         
@@ -92,16 +105,14 @@ def rodada_palpites(request, rodada_id):
         else:
             messages.error(request, "Nenhum palpite foi salvo. Verifique os dados.")
     
-    # Buscar palpites existentes
-    palpites_existentes = {}
-    for palpite in Palpite.objects.filter(participante=participante, jogo__rodada=rodada):
-        palpites_existentes[palpite.jogo.id] = palpite
-    
     context = {
         'rodada': rodada,
         'jogos': jogos,
         'participante': participante,
         'palpites_existentes': palpites_existentes,
+        'pode_palpitar': pode_palpitar,
+        'todos_palpites': todos_palpites,
+        'participantes_ativos': participantes_ativos,
     }
     
     return render(request, 'bolao/palpites.html', context)
@@ -203,15 +214,19 @@ def perfil_participante(request, participante_id):
         Q(gols_casa_palpite__lt=F('gols_visitante_palpite'), jogo__gols_casa__lt=F('jogo__gols_visitante'))
     ).count()
     
-    empates_acertados = palpites.filter(
-        gols_casa_palpite=F('gols_visitante_palpite'),
-        jogo__gols_casa=F('jogo__gols_visitante')
-    ).count()
+    # Calcular pontos totais
+    pontos_totais = sum(palpite.pontos_obtidos for palpite in palpites)
     
-    vitorias_acertadas = palpites.filter(
-        Q(gols_casa_palpite__gt=F('gols_visitante_palpite'), jogo__gols_casa__gt=F('jogo__gols_visitante')) |
-        Q(gols_casa_palpite__lt=F('gols_visitante_palpite'), jogo__gols_casa__lt=F('jogo__gols_visitante'))
-    ).count()
+    # Calcular último saldo (pontos da última rodada)
+    from .models import Rodada
+    ultima_rodada = Rodada.objects.filter(
+        jogo__resultado_finalizado=True
+    ).order_by('-numero').first()
+    
+    ultimo_saldo = 0
+    if ultima_rodada:
+        palpites_ultima_rodada = palpites.filter(jogo__rodada=ultima_rodada)
+        ultimo_saldo = sum(palpite.pontos_obtidos for palpite in palpites_ultima_rodada)
     
     # Palpites recentes
     palpites_recentes = palpites.order_by('-data_palpite')[:10]
@@ -226,8 +241,8 @@ def perfil_participante(request, participante_id):
         'participante': participante,
         'total_palpites': total_palpites,
         'acertos': acertos,
-        'empates_acertados': empates_acertados,
-        'vitorias_acertadas': vitorias_acertadas,
+        'pontos_totais': pontos_totais,
+        'ultimo_saldo': ultimo_saldo,
         'palpites_recentes': palpites_recentes,
         'classificacao_atual': classificacao_atual,
         'porcentagem_acerto': round((acertos / total_palpites * 100), 1) if total_palpites > 0 else 0,

@@ -86,13 +86,13 @@
                     </div>
                     <div class="col-6 col-md-3 mt-3 mt-md-0">
                         <div class="border-end border-md-end-0">
-                            <h3 class="text-warning">{{ empates_acertados }}</h3>
-                            <p class="text-muted mb-0">Empates</p>
+                            <h3 class="text-primary">{{ pontos_totais }}</h3>
+                            <p class="text-muted mb-0">Pontos Totais</p>
                         </div>
                     </div>
                     <div class="col-6 col-md-3 mt-3 mt-md-0">
-                        <h3 class="text-info">{{ vitorias_acertadas }}</h3>
-                        <p class="text-muted mb-0">Vitórias</p>
+                        <h3 class="{% if ultimo_saldo > 0 %}text-success{% elif ultimo_saldo < 0 %}text-danger{% else %}text-muted{% endif %}">{{ ultimo_saldo }}</h3>
+                        <p class="text-muted mb-0">Último Saldo</p>
                     </div>
                 </div>
                 

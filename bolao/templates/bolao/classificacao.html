@@ -65,9 +65,7 @@
                                 <th>Participante</th>
                                 <th width="80" class="text-center">Pontos</th>
                                 <th width="80" class="text-center mobile-hide">Acertos</th>
-                                <th width="80" class="text-center mobile-hide">Empates</th>
-                                <th width="80" class="text-center mobile-hide">Vitórias</th>
-                                <th width="70" class="text-center">%</th>
+                                <th width="100" class="text-center mobile-hide">Último Saldo</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -108,8 +106,7 @@
                                                 <div class="d-block d-md-none mobile-stack mt-1">
                                                     <small class="text-muted">
                                                         Acertos: <span class="text-success fw-bold">{{ classificacao.acertos_totais }}</span> |
-                                                        Empates: <span class="text-warning fw-bold">{{ classificacao.empates_acertados }}</span> |
-                                                        Vitórias: <span class="text-info fw-bold">{{ classificacao.vitorias_acertadas }}</span>
+                                                        Último Saldo: <span class="text-primary fw-bold">{{ classificacao.ultimo_saldo }}</span>
                                                     </small>
                                                 </div>
                                             </div>
@@ -127,24 +124,9 @@
                                     </span>
                                 </td>
                                 <td class="text-center align-middle mobile-hide">
-                                    <span class="text-warning fw-bold">
-                                        {{ classificacao.empates_acertados }}
+                                    <span class="{% if classificacao.ultimo_saldo > 0 %}text-success{% elif classificacao.ultimo_saldo < 0 %}text-danger{% else %}text-muted{% endif %} fw-bold">
+                                        {{ classificacao.ultimo_saldo }}
                                     </span>
-                                </td>
-                                <td class="text-center align-middle mobile-hide">
-                                    <span class="text-info fw-bold">
-                                        {{ classificacao.vitorias_acertadas }}
-                                    </span>
-                                </td>
-                                <td class="text-center align-middle">
-                                    {% if classificacao.acertos_totais > 0 and total_jogos_finalizados > 0 %}
-                                        {% widthratio classificacao.acertos_totais total_jogos_finalizados 100 as porcentagem %}
-                                        <span class="{% if porcentagem >= 70 %}text-success{% elif porcentagem >= 50 %}text-warning{% else %}text-danger{% endif %} fw-bold">
-                                            {{ porcentagem }}%
-                                        </span>
-                                    {% else %}
-                                        <span class="text-muted">0%</span>
-                                    {% endif %}
                                 </td>
                             </tr>
                             {% endfor %}

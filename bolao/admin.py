@@ -256,8 +256,8 @@ class TimeAdmin(admin.ModelAdmin):
 
 @admin.register(Participante)
 class ParticipanteAdmin(admin.ModelAdmin):
-    list_display = ('nome_exibicao', 'user', 'foto_preview', 'ativo', 'pontos_totais', 'data_cadastro')
-    list_filter = ('ativo', 'data_cadastro')
+    list_display = ('nome_exibicao', 'user', 'foto_preview', 'ativo', 'invisivel', 'pontos_totais', 'data_cadastro')
+    list_filter = ('ativo', 'invisivel', 'data_cadastro')
     search_fields = ('nome_exibicao', 'user__username', 'user__email')
     readonly_fields = ('data_cadastro', 'pontos_totais')
     actions = ['inserir_palpites_rapido']
@@ -640,10 +640,10 @@ class PalpiteAdmin(admin.ModelAdmin):
 
 @admin.register(Classificacao)
 class ClassificacaoAdmin(admin.ModelAdmin):
-    list_display = ('posicao', 'participante', 'pontos_totais', 'acertos_totais', 'empates_acertados', 'vitorias_acertadas', 'ultima_atualizacao')
+    list_display = ('posicao', 'participante', 'pontos_totais', 'acertos_totais', 'ultimo_saldo', 'ultima_atualizacao')
     list_filter = ('ultima_atualizacao',)
     search_fields = ('participante__nome_exibicao',)
-    readonly_fields = ('posicao', 'participante', 'pontos_totais', 'acertos_totais', 'empates_acertados', 'vitorias_acertadas', 'ultima_atualizacao')
+    readonly_fields = ('posicao', 'participante', 'pontos_totais', 'acertos_totais', 'ultimo_saldo', 'ultima_atualizacao')
     
     def has_add_permission(self, request):
         return False
