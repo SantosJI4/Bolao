@@ -265,7 +265,7 @@ class ParticipanteAdmin(admin.ModelAdmin):
     def foto_preview(self, obj):
         if obj.foto_perfil:
             return format_html('<img src="{}" width="40" height="40" style="border-radius: 50%; object-fit: cover;" />', obj.foto_perfil.url)
-        return format_html('<div style="width: 40px; height: 40px; border-radius: 50%; background-color: #f0f0f0; display: flex; align-items: center; justify-content: center; color: #666;"><i class="fas fa-user"></i></div>')
+        return '<div style="width: 40px; height: 40px; border-radius: 50%; background-color: #f0f0f0; display: flex; align-items: center; justify-content: center; color: #666;"><i class="fas fa-user"></i></div>'
     foto_preview.short_description = 'Foto'
     
     def pontos_totais(self, obj):
@@ -598,17 +598,11 @@ class PalpiteAdmin(admin.ModelAdmin):
             return "Jogo não finalizado"
         
         if obj.acertou_placar_exato:
-            return format_html(
-                '<span style="color: gold; font-weight: bold;">⭐ Placar Exato</span>'
-            )
+            return '<span style="color: gold; font-weight: bold;">⭐ Placar Exato</span>'
         elif obj.acertou:
-            return format_html(
-                '<span style="color: green; font-weight: bold;">✓ Resultado Correto</span>'
-            )
+            return '<span style="color: green; font-weight: bold;">✓ Resultado Correto</span>'
         else:
-            return format_html(
-                '<span style="color: red; font-weight: bold;">✗ Errou</span>'
-            )
+            return '<span style="color: red; font-weight: bold;">✗ Errou</span>'
     acertou_display.short_description = 'Resultado'
 
 
