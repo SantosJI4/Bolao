@@ -1,0 +1,190 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block title %}{{ title|default:"Inserir Palpites em Lote" }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-12">
+            <h2>{{ title|default:"Inserir Palpites em Lote" }}</h2>
+            
+            {% if participante %}
+            <div class="alert alert-info">
+                <strong>Participante selecionado:</strong> {{ participante.nome_exibicao }}
+            </div>
+            {% endif %}
+            
+            <div class="card">
+                <div class="card-header">
+                    <h5>📝 Formulário de Palpites</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label for="{{ form.participante.id_for_label }}">{{ form.participante.label }}</label>
+                                    {{ form.participante }}
+                                    {% if form.participante.help_text %}
+                                        <small class="form-text text-muted">{{ form.participante.help_text }}</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label for="{{ form.rodada.id_for_label }}">{{ form.rodada.label }}</label>
+                                    {{ form.rodada }}
+                                    {% if form.rodada.help_text %}
+                                        <small class="form-text text-muted">{{ form.rodada.help_text }}</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="{{ form.palpites.id_for_label }}">{{ form.palpites.label }}</label>
+                            {{ form.palpites }}
+                            {% if form.palpites.help_text %}
+                                <small class="form-text text-muted">{{ form.palpites.help_text }}</small>
+                            {% endif %}
+                            {% if form.palpites.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {% for error in form.palpites.errors %}
+                                        <div>{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="form-check mb-3">
+                            {{ form.substituir_existentes }}
+                            <label class="form-check-label" for="{{ form.substituir_existentes.id_for_label }}">
+                                {{ form.substituir_existentes.label }}
+                            </label>
+                            {% if form.substituir_existentes.help_text %}
+                                <small class="form-text text-muted d-block">{{ form.substituir_existentes.help_text }}</small>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'admin:bolao_participante_changelist' %}" class="btn btn-secondary">
+                                ← Voltar
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                🎯 Inserir Palpites
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Ajuda -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h6>📋 Formatos Aceitos</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <h6 class="text-primary">Formato 1: Apenas placares</h6>
+                            <pre class="bg-light p-2 rounded">1x1, 2x0, 0x3</pre>
+                            <small class="text-muted">Os palpites serão aplicados na ordem dos jogos da rodada</small>
+                        </div>
+                        <div class="col-md-4">
+                            <h6 class="text-primary">Formato 2: Com times</h6>
+                            <pre class="bg-light p-2 rounded">fla 1x2 pal
+atm 0x1 bah
+cor 3x1 gre</pre>
+                            <small class="text-muted">Use siglas ou nomes dos times</small>
+                        </div>
+                        <div class="col-md-4">
+                            <h6 class="text-primary">Formato 3: Misto</h6>
+                            <pre class="bg-light p-2 rounded">1x1
+fla 2x0 pal
+0x3</pre>
+                            <small class="text-muted">Pode misturar os formatos</small>
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    
+                    <div class="row mt-3">
+                        <div class="col-md-6">
+                            <h6 class="text-success">Siglas aceitas:</h6>
+                            <div class="row">
+                                <div class="col-sm-6">
+                                    <small>
+                                        fla = Flamengo<br>
+                                        pal = Palmeiras<br>
+                                        cor = Corinthians<br>
+                                        sao = São Paulo<br>
+                                        gre = Grêmio<br>
+                                        int = Internacional<br>
+                                        atm = Atlético-MG<br>
+                                        cap/ath = Athletico-PR
+                                    </small>
+                                </div>
+                                <div class="col-sm-6">
+                                    <small>
+                                        bah = Bahia<br>
+                                        flu = Fluminense<br>
+                                        bot = Botafogo<br>
+                                        vas = Vasco<br>
+                                        san = Santos<br>
+                                        cru = Cruzeiro<br>
+                                        for = Fortaleza<br>
+                                        cea = Ceará
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="text-info">Dicas:</h6>
+                            <ul>
+                                <li>Separe por vírgulas ou quebras de linha</li>
+                                <li>Use espaços à vontade (1 x 1 ou 1x1)</li>
+                                <li>Pode misturar maiúsculas e minúsculas</li>
+                                <li>Se marcar "substituir existentes", irá sobrescrever palpites já feitos</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.form-control, .form-select {
+    border-radius: 0.375rem;
+    border: 1px solid #ced4da;
+    padding: 0.375rem 0.75rem;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: #86b7fe;
+    outline: 0;
+    box-shadow: 0 0 0 0.25rem rgb(13 110 253 / 25%);
+}
+
+pre {
+    font-size: 0.85rem;
+    margin-bottom: 0.5rem;
+}
+
+.card-header h5, .card-header h6 {
+    margin-bottom: 0;
+}
+
+.alert {
+    border-radius: 0.375rem;
+}
+
+small {
+    font-size: 0.8rem;
+}
+</style>
+{% endblock %}
