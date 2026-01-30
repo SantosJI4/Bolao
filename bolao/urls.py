@@ -10,4 +10,7 @@ urlpatterns = [
     path('classificacao/', views.classificacao, name='classificacao'),
     path('participante/<int:participante_id>/', views.perfil_participante, name='perfil_participante'),
     path('perfil/editar/', views.editar_perfil, name='editar_perfil'),
+    path('termos/', views.termos_uso, name='termos_uso'),
+    path('atualizacoes/', views.atualizacoes, name='atualizacoes'),
+    path('marcar-atualizacao-vista/<str:versao>/', views.marcar_atualizacao_vista, name='marcar_atualizacao_vista'),
 ]

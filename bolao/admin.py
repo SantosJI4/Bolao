@@ -7,7 +7,7 @@ from django.shortcuts import redirect, render
 from django.contrib import messages
 from django.http import HttpResponseRedirect, JsonResponse
 from django import forms
-from .models import Time, Participante, Rodada, Jogo, Palpite, Classificacao
+from .models import Time, Participante, Rodada, Jogo, Palpite, Classificacao, AtualizacaoSite, AtualizacaoVista
 import re
 
 
@@ -657,6 +657,51 @@ class ClassificacaoAdmin(admin.ModelAdmin):
         Classificacao.atualizar_classificacao()
         self.message_user(request, "Classificação atualizada com sucesso!")
     atualizar_classificacao_manual.short_description = "Atualizar classificação manualmente"
+
+
+@admin.register(AtualizacaoSite)
+class AtualizacaoSiteAdmin(admin.ModelAdmin):
+    """Administração das atualizações do site"""
+    list_display = ('versao', 'titulo', 'data_lancamento', 'ativa', 'usuarios_que_viram')
+    list_filter = ('ativa', 'data_lancamento')
+    search_fields = ('versao', 'titulo', 'descricao')
+    ordering = ('-data_lancamento',)
+    
+    fieldsets = (
+        (None, {
+            'fields': ('versao', 'titulo', 'descricao', 'ativa')
+        }),
+    )
+    
+    def usuarios_que_viram(self, obj):
+        """Mostra quantos usuários já viram a atualização"""
+        count = AtualizacaoVista.objects.filter(atualizacao=obj).count()
+        return f"{count} usuários"
+    
+    usuarios_que_viram.short_description = "Visualizações"
+
+
+@admin.register(AtualizacaoVista)
+class AtualizacaoVistaAdmin(admin.ModelAdmin):
+    """Administração das visualizações de atualizações"""
+    list_display = ('participante', 'atualizacao_versao', 'data_visualizacao')
+    list_filter = ('data_visualizacao', 'atualizacao__versao')
+    search_fields = ('participante__nome_exibicao', 'atualizacao__versao', 'atualizacao__titulo')
+    ordering = ('-data_visualizacao',)
+    
+    def atualizacao_versao(self, obj):
+        """Mostra a versão da atualização"""
+        return f"v{obj.atualizacao.versao} - {obj.atualizacao.titulo}"
+    
+    atualizacao_versao.short_description = "Atualização"
+    
+    def has_add_permission(self, request):
+        """Não permite adicionar manualmente"""
+        return False
+    
+    def has_change_permission(self, request, obj=None):
+        """Não permite editar"""
+        return False
 
 
 # Customizações do admin site

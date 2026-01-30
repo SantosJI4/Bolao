@@ -19,9 +19,20 @@ def home(request):
     
     # Se o usuário estiver logado, pegar o participante
     participante = None
+    atualizacao_nao_vista = None
+    
     if request.user.is_authenticated:
         try:
             participante = request.user.participante
+            
+            # Verifica se há atualizações não vistas
+            from .models import AtualizacaoSite, AtualizacaoVista
+            atualizacoes_ativas = AtualizacaoSite.objects.filter(ativa=True)
+            atualizacoes_vistas = AtualizacaoVista.objects.filter(participante=participante).values_list('atualizacao_id', flat=True)
+            
+            # Pega a atualização mais recente não vista
+            atualizacao_nao_vista = atualizacoes_ativas.exclude(id__in=atualizacoes_vistas).first()
+            
         except:
             pass
     
@@ -30,6 +41,7 @@ def home(request):
         'rodadas_futuras': rodadas_futuras,
         'rodadas_passadas': rodadas_passadas,
         'participante': participante,
+        'atualizacao_nao_vista': atualizacao_nao_vista,
     }
     
     return render(request, 'bolao/home.html', context)
@@ -314,3 +326,42 @@ def csrf_failure(request, reason=""):
     
     # Renderiza página amigável em vez de erro brutal
     return render(request, 'bolao/csrf_error.html', context, status=403)
+
+
+def termos_uso(request):
+    """Página com os termos de uso do site"""
+    return render(request, 'bolao/termos_uso.html')
+
+
+def atualizacoes(request):
+    """Página com todas as atualizações do site"""
+    from .models import AtualizacaoSite
+    atualizacoes_list = AtualizacaoSite.objects.filter(ativa=True).order_by('-data_lancamento')
+    
+    context = {
+        'atualizacoes': atualizacoes_list,
+    }
+    
+    return render(request, 'bolao/atualizacoes.html', context)
+
+
+@login_required
+@require_POST
+def marcar_atualizacao_vista(request, versao):
+    """Marca uma atualização como vista pelo usuário"""
+    from django.http import JsonResponse
+    from .models import AtualizacaoSite, AtualizacaoVista
+    
+    try:
+        participante = request.user.participante
+        atualizacao = get_object_or_404(AtualizacaoSite, versao=versao)
+        
+        # Cria ou atualiza o registro de visualização
+        vista, created = AtualizacaoVista.objects.get_or_create(
+            participante=participante,
+            atualizacao=atualizacao
+        )
+        
+        return JsonResponse({'success': True})
+    except:
+        return JsonResponse({'success': False}, status=400)

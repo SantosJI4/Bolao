@@ -1,0 +1,141 @@
+{% extends 'bolao/base.html' %}
+
+{% block title %}Atualizações - FutAmigo{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-10">
+        <div class="card">
+            <div class="card-header bg-dark text-white">
+                <h1 class="h3 mb-0">
+                    <i class="fas fa-history me-2"></i>
+                    Histórico de Atualizações
+                </h1>
+                <small class="text-light opacity-75">
+                    Acompanhe todas as melhorias e novidades do FutAmigo
+                </small>
+            </div>
+            <div class="card-body">
+                {% if atualizacoes %}
+                    <div class="timeline">
+                        {% for atualizacao in atualizacoes %}
+                            <div class="timeline-item mb-4">
+                                <div class="timeline-marker bg-primary"></div>
+                                <div class="timeline-content">
+                                    <div class="card shadow-sm border-0">
+                                        <div class="card-header bg-light border-0">
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <h5 class="card-title mb-0 text-primary">
+                                                    <span class="badge bg-primary me-2">v{{ atualizacao.versao }}</span>
+                                                    {{ atualizacao.titulo }}
+                                                </h5>
+                                                <small class="text-muted">
+                                                    <i class="fas fa-calendar-alt me-1"></i>
+                                                    {{ atualizacao.data_lancamento|date:"d/m/Y H:i" }}
+                                                </small>
+                                            </div>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="update-description">
+                                                {{ atualizacao.descricao|linebreaks }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-history text-muted" style="font-size: 4rem;"></i>
+                        <h4 class="text-muted mt-3">Nenhuma atualização disponível</h4>
+                        <p class="text-muted">As futuras atualizações serão exibidas aqui.</p>
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div class="card-footer text-center">
+                <a href="{% url 'home' %}" class="btn btn-primary">
+                    <i class="fas fa-arrow-left me-2"></i>Voltar ao Início
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.timeline {
+    position: relative;
+    padding-left: 3rem;
+}
+
+.timeline::before {
+    content: '';
+    position: absolute;
+    left: 1rem;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: linear-gradient(to bottom, #007bff, #6c757d);
+}
+
+.timeline-item {
+    position: relative;
+}
+
+.timeline-marker {
+    position: absolute;
+    left: -2.5rem;
+    top: 1rem;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 50%;
+    border: 3px solid white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.timeline-content {
+    margin-left: 0.5rem;
+}
+
+.update-description {
+    color: #495057;
+    line-height: 1.6;
+}
+
+.update-description p {
+    margin-bottom: 0.75rem;
+}
+
+.update-description ul {
+    padding-left: 1.5rem;
+}
+
+.update-description li {
+    margin-bottom: 0.25rem;
+}
+
+.card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.1) !important;
+}
+
+@media (max-width: 768px) {
+    .timeline {
+        padding-left: 2rem;
+    }
+    
+    .timeline-marker {
+        left: -1.5rem;
+    }
+    
+    .timeline-content {
+        margin-left: 0;
+    }
+}
+</style>
+{% endblock %}

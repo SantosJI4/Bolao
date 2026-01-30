@@ -289,3 +289,35 @@ class Classificacao(models.Model):
                 posicao=posicao,
                 **data
             )
+
+
+class AtualizacaoSite(models.Model):
+    """Modelo para controlar as atualizações do site"""
+    versao = models.CharField(max_length=10, unique=True)  # Ex: "1.1", "1.2"
+    titulo = models.CharField(max_length=100)
+    descricao = models.TextField()
+    data_lancamento = models.DateTimeField(auto_now_add=True)
+    ativa = models.BooleanField(default=True)  # Se deve mostrar no popup
+    
+    class Meta:
+        verbose_name = 'Atualização do Site'
+        verbose_name_plural = 'Atualizações do Site'
+        ordering = ['-data_lancamento']
+    
+    def __str__(self):
+        return f"Versão {self.versao} - {self.titulo}"
+
+
+class AtualizacaoVista(models.Model):
+    """Controla quais atualizações cada usuário já viu"""
+    participante = models.ForeignKey(Participante, on_delete=models.CASCADE)
+    atualizacao = models.ForeignKey(AtualizacaoSite, on_delete=models.CASCADE)
+    data_visualizacao = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        verbose_name = 'Atualização Vista'
+        verbose_name_plural = 'Atualizações Vistas'
+        unique_together = ['participante', 'atualizacao']
+    
+    def __str__(self):
+        return f"{self.participante.nome_exibicao} - {self.atualizacao.versao}"
