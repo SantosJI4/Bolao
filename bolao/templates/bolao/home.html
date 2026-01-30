@@ -296,6 +296,15 @@
                     </div>
                 </div>
                 
+                {% if atualizacao_nao_vista.link_pagina %}
+                <div class="text-center mt-3">
+                    <a href="{{ atualizacao_nao_vista.link_pagina }}" class="btn btn-outline-primary" target="_blank">
+                        <i class="fas fa-external-link-alt me-2"></i>
+                        {{ atualizacao_nao_vista.texto_link|default:"Ver Página" }}
+                    </a>
+                </div>
+                {% endif %}
+                
                 <div class="text-center mt-4">
                     <p class="text-muted small mb-0">
                         <i class="fas fa-calendar-alt me-1"></i>

@@ -365,3 +365,234 @@ def marcar_atualizacao_vista(request, versao):
         return JsonResponse({'success': True})
     except:
         return JsonResponse({'success': False}, status=400)
+
+
+import requests
+import json
+from datetime import datetime, timedelta
+from django.core.cache import cache
+from django.http import JsonResponse
+
+
+def jogos_ao_vivo(request):
+    """Página de jogos ao vivo com placares em tempo real"""
+    return render(request, 'bolao/jogos_ao_vivo.html')
+
+
+def atualizar_placares_api(request):
+    """API para atualizar placares do Brasileirão - otimizada com cache inteligente"""
+    from django.core.cache import cache
+    import requests
+    from datetime import datetime, timedelta
+    
+    # Chaves de cache específicas
+    CACHE_KEY = 'brasileirao_placares'
+    CACHE_BACKUP_KEY = 'brasileirao_placares_backup'
+    CACHE_TIMEOUT = 180  # 3 minutos para Brasileirão
+    CACHE_BACKUP_TIMEOUT = 3600  # 1 hora backup
+    
+    # Tenta pegar do cache primeiro
+    placares_cache = cache.get(CACHE_KEY)
+    
+    if placares_cache:
+        return JsonResponse({
+            'success': True,
+            'jogos': placares_cache['jogos'],
+            'ultima_atualizacao': placares_cache['ultima_atualizacao'],
+            'fonte': 'cache',
+            'proxima_atualizacao': placares_cache.get('proxima_atualizacao')
+        })
+    
+    try:
+        # Configuração da API-Football (RapidAPI)
+        API_URL = "https://v3.football.api-sports.io/fixtures"
+        
+        headers = {
+            'X-RapidAPI-Key': 'b20093f89e13ee92bd30872fba5da1fe',
+            'X-RapidAPI-Host': 'v3.football.api-sports.io'
+        }
+        
+        # Data atual para buscar jogos
+        hoje = datetime.now().strftime('%Y-%m-%d')
+        ontem = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+        amanha = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
+        
+        # Parâmetros para Brasileirão (Liga ID = 71, Temporada atual)
+        params = {
+            'league': '71',  # Brasileirão Série A
+            'season': '2026',
+            'from': ontem,
+            'to': amanha,
+            'timezone': 'America/Sao_Paulo'
+        }
+        
+        # Requisição à API
+        response = requests.get(API_URL, headers=headers, params=params, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            jogos_2026 = data.get('response', [])
+            
+            # Se não há jogos na temporada atual (2026), buscar da temporada passada (2024) para demonstração
+            if not jogos_2026:
+                cache_key_demo = 'jogos_brasileirao_demo'
+                jogos_demo = cache.get(cache_key_demo)
+                
+                if not jogos_demo:
+                    # Buscar jogos da temporada 2024 para demonstração
+                    params_demo = {
+                        'league': '71',
+                        'season': '2024',
+                        'last': 20  # Últimos 20 jogos
+                    }
+                    
+                    response_demo = requests.get(API_URL, headers=headers, params=params_demo, timeout=10)
+                    if response_demo.status_code == 200:
+                        data_demo = response_demo.json()
+                        jogos_demo = data_demo.get('response', [])[:10]  # Limitar a 10 jogos
+                        cache.set(cache_key_demo, jogos_demo, 1800)  # Cache por 30 minutos
+                
+                # Usar jogos demo se disponível
+                if jogos_demo:
+                    jogos_api = jogos_demo
+                    fonte = 'api_brasileirao_2024_demo'
+                else:
+                    jogos_api = []
+                    fonte = 'api_brasileirao'
+            else:
+                jogos_api = jogos_2026
+                fonte = 'api_brasileirao_2026'
+        else:
+            # Em caso de erro na API, tentar cache
+            jogos_api = cache.get('jogos_brasileirao_demo', [])
+            fonte = 'cache_demo'
+        
+        # Processa os jogos encontrados
+        jogos_processados = []
+        for jogo in jogos_api:
+            
+            # Extrai estatísticas se disponível
+            estatisticas = extrair_estatisticas(jogo)
+            
+            jogo_info = {
+                    'id': jogo['fixture']['id'],
+                    'time_casa': jogo['teams']['home']['name'],
+                    'time_visitante': jogo['teams']['away']['name'],
+                    'escudo_casa': jogo['teams']['home']['logo'],
+                    'escudo_visitante': jogo['teams']['away']['logo'],
+                    'gols_casa': jogo['goals']['home'],
+                    'gols_visitante': jogo['goals']['away'],
+                    'status': jogo['fixture']['status']['short'],
+                    'status_longo': jogo['fixture']['status']['long'],
+                    'minuto': jogo['fixture']['status'].get('elapsed'),
+                    'competicao': 'Brasileirão Série A',
+                    'rodada': jogo['league']['round'],
+                    'horario': jogo['fixture']['date'],
+                    'estadio': jogo['fixture']['venue']['name'] if jogo['fixture']['venue'] else None,
+                    'cidade': jogo['fixture']['venue']['city'] if jogo['fixture']['venue'] else None,
+                    'ao_vivo': jogo['fixture']['status']['short'] in ['1H', '2H', 'HT', 'ET', 'P'],
+                    'finalizado': jogo['fixture']['status']['short'] in ['FT', 'AET', 'PEN'],
+                    'agendado': jogo['fixture']['status']['short'] in ['TBD', 'NS'],
+                    'estatisticas': estatisticas
+            }
+            jogos_processados.append(jogo_info)
+        
+        # Ordena jogos: ao vivo primeiro, depois agendados, depois finalizados
+        jogos_processados.sort(key=lambda x: (
+            0 if x['ao_vivo'] else 1 if x['agendado'] else 2,
+            x['horario']
+        ))
+        
+        # Dados para cache
+        proxima_atualizacao = datetime.now() + timedelta(seconds=CACHE_TIMEOUT)
+        cache_data = {
+            'jogos': jogos_processados,
+            'ultima_atualizacao': datetime.now().strftime('%H:%M:%S'),
+            'proxima_atualizacao': proxima_atualizacao.strftime('%H:%M:%S'),
+            'total_jogos': len(jogos_processados),
+            'ao_vivo': len([j for j in jogos_processados if j['ao_vivo']]),
+            'agendados': len([j for j in jogos_processados if j['agendado']]),
+            'finalizados': len([j for j in jogos_processados if j['finalizado']])
+        }
+        
+        # Salva no cache principal
+        cache.set(CACHE_KEY, cache_data, CACHE_TIMEOUT)
+        
+        # Salva backup com timeout maior
+        cache.set(CACHE_BACKUP_KEY, cache_data, CACHE_BACKUP_TIMEOUT)
+        
+        return JsonResponse({
+            'success': True,
+            'jogos': jogos_processados,
+            'ultima_atualizacao': cache_data['ultima_atualizacao'],
+            'proxima_atualizacao': cache_data['proxima_atualizacao'],
+            'estatisticas': {
+                'total_jogos': cache_data['total_jogos'],
+                'ao_vivo': cache_data['ao_vivo'],
+                'agendados': cache_data['agendados'],
+                'finalizados': cache_data['finalizados']
+            },
+            'fonte': 'api_brasileirao'
+        })
+        
+    except Exception as e:
+        # Em caso de erro, tenta retornar cache backup
+        backup_cache = cache.get(CACHE_BACKUP_KEY)
+        if backup_cache:
+            return JsonResponse({
+                'success': True,
+                'jogos': backup_cache['jogos'],
+                'ultima_atualizacao': backup_cache['ultima_atualizacao'],
+                'fonte': 'cache_backup',
+                'erro': f'API indisponível: {str(e)}'
+            })
+        
+        # Se não há backup, retorna erro
+        return JsonResponse({
+            'success': False,
+            'error': f'Erro na API e sem cache backup: {str(e)}'
+        }, status=500)
+
+
+def extrair_estatisticas(jogo):
+    """Extrai estatísticas detalhadas do jogo se disponível"""
+    try:
+        stats = jogo.get('statistics', [])
+        if not stats:
+            return None
+            
+        estatisticas = {
+            'casa': {},
+            'visitante': {}
+        }
+        
+        # Mapeamento de estatísticas importantes
+        stats_map = {
+            'Shots on Goal': 'chutes_no_gol',
+            'Shots off Goal': 'chutes_para_fora', 
+            'Total Shots': 'total_chutes',
+            'Ball Possession': 'posse_de_bola',
+            'Fouls': 'faltas',
+            'Yellow Cards': 'cartoes_amarelos',
+            'Red Cards': 'cartoes_vermelhos',
+            'Offsides': 'impedimentos',
+            'Corner Kicks': 'escanteios',
+            'Passes %': 'precisao_passes',
+            'expected_goals': 'gols_esperados'
+        }
+        
+        for team_stats in stats:
+            team = 'casa' if team_stats['team']['id'] == jogo['teams']['home']['id'] else 'visitante'
+            
+            for stat in team_stats['statistics']:
+                stat_name = stat['type']
+                stat_value = stat['value']
+                
+                if stat_name in stats_map:
+                    key = stats_map[stat_name]
+                    estatisticas[team][key] = stat_value
+        
+        return estatisticas
+        
+    except Exception:
+        return None

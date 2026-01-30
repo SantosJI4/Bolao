@@ -1,0 +1,589 @@
+{% extends 'bolao/base.html' %}
+
+{% block title %}Jogos Ao Vivo - FutAmigo{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-danger text-white">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h1 class="h3 mb-0">
+                            <i class="fas fa-broadcast-tower me-2"></i>
+                            Jogos Ao Vivo
+                        </h1>
+                        <small class="opacity-75">Placares em tempo real</small>
+                    </div>
+                    <div class="text-end">
+                        <span class="badge bg-light text-dark live-indicator">
+                            <i class="fas fa-circle text-danger me-1 pulse"></i>
+                            LIVE
+                        </span>
+                        <div class="mt-1">
+                            <small id="ultima-atualizacao" class="opacity-75">
+                                Carregando...
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card-body">
+                <!-- Loading Spinner -->
+                <div id="loading-spinner" class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Carregando...</span>
+                    </div>
+                    <p class="mt-3 text-muted">Buscando jogos ao vivo...</p>
+                </div>
+
+                <!-- Container dos Jogos -->
+                <div id="jogos-container" class="d-none">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="btn-group" role="group">
+                                <button type="button" class="btn btn-outline-primary active" data-filtro="todos">
+                                    <i class="fas fa-list me-1"></i>Todos
+                                </button>
+                                <button type="button" class="btn btn-outline-success" data-filtro="ao-vivo">
+                                    <i class="fas fa-play me-1"></i>Ao Vivo
+                                </button>
+                                <button type="button" class="btn btn-outline-warning" data-filtro="agendados">
+                                    <i class="fas fa-clock me-1"></i>Agendados
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" data-filtro="finalizados">
+                                    <i class="fas fa-check me-1"></i>Finalizados
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-md-6 text-end">
+                            <!-- Estatísticas rápidas -->
+                            <div class="d-flex justify-content-end align-items-center">
+                                <div id="stats-quick" class="me-3 small text-muted">
+                                    <!-- Stats serão preenchidas via JS -->
+                                </div>
+                                <button id="btn-atualizar" class="btn btn-primary">
+                                    <i class="fas fa-sync-alt me-1"></i>Atualizar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Lista de Jogos -->
+                    <div id="lista-jogos">
+                        <!-- Jogos serão inseridos aqui via JavaScript -->
+                    </div>
+
+                    <!-- Aviso se não houver jogos -->
+                    <div id="sem-jogos" class="text-center py-5 d-none">
+                        <i class="fas fa-futbol text-muted" style="font-size: 4rem;"></i>
+                        <h4 class="text-muted mt-3">Nenhum jogo encontrado</h4>
+                        <p class="text-muted">Não há jogos no momento para os filtros selecionados.</p>
+                    </div>
+                </div>
+
+                <!-- Erro -->
+                <div id="erro-container" class="text-center py-5 d-none">
+                    <i class="fas fa-exclamation-triangle text-warning" style="font-size: 4rem;"></i>
+                    <h4 class="text-warning mt-3">Erro ao carregar jogos</h4>
+                    <p class="text-muted">Houve um problema ao buscar os placares. Tente novamente.</p>
+                    <button class="btn btn-warning" onclick="carregarJogos()">
+                        <i class="fas fa-retry me-1"></i>Tentar Novamente
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Animações e estilos específicos */
+.pulse {
+    animation: pulse-animation 1.5s infinite;
+}
+
+@keyframes pulse-animation {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+.live-badge {
+    animation: pulse-badge 2s infinite;
+}
+
+@keyframes pulse-badge {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+}
+
+.jogo-card {
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+}
+
+.jogo-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.jogo-card.ao-vivo {
+    border-color: #dc3545;
+    background: linear-gradient(45deg, #fff, #fff8f8);
+}
+
+.jogo-card.finalizado {
+    opacity: 0.8;
+}
+
+.jogo-card.agendado {
+    border-color: #ffc107;
+}
+
+.placar-destaque {
+    font-size: 1.8rem;
+    font-weight: bold;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+}
+
+.status-badge {
+    font-size: 0.8rem;
+    padding: 0.3rem 0.6rem;
+}
+
+.escudo-time {
+    width: 40px;
+    height: 40px;
+    object-fit: contain;
+    border-radius: 50%;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.time-info {
+    min-width: 0; /* Para texto truncado funcionar */
+}
+
+.nome-time {
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+.status-live {
+    background: linear-gradient(45deg, #dc3545, #e85d75);
+    animation: pulse-live 2s infinite;
+}
+
+@keyframes pulse-live {
+    0% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); }
+    70% { box-shadow: 0 0 0 8px rgba(220, 53, 69, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
+}
+
+.competicao-badge {
+    background: linear-gradient(45deg, #007bff, #6c757d);
+}
+
+@media (max-width: 768px) {
+    .placar-destaque {
+        font-size: 1.4rem;
+    }
+    
+    .escudo-time {
+        width: 32px;
+        height: 32px;
+    }
+    
+    .nome-time {
+        font-size: 0.85rem;
+    }
+}
+</style>
+
+<script>
+let intervalId = null;
+let filtroAtual = 'todos';
+
+document.addEventListener('DOMContentLoaded', function() {
+    carregarJogos();
+    
+    // Auto-atualização a cada 30 segundos
+    intervalId = setInterval(carregarJogos, 30000);
+    
+    // Event listeners para filtros
+    document.querySelectorAll('[data-filtro]').forEach(btn => {
+        btn.addEventListener('click', function() {
+            // Remove active de todos
+            document.querySelectorAll('[data-filtro]').forEach(b => b.classList.remove('active'));
+            // Adiciona active no clicado
+            this.classList.add('active');
+            
+            filtroAtual = this.dataset.filtro;
+            aplicarFiltro();
+        });
+    });
+    
+    // Event listener para botão atualizar
+    document.getElementById('btn-atualizar').addEventListener('click', function() {
+        this.disabled = true;
+        this.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Atualizando...';
+        
+        carregarJogos().finally(() => {
+            this.disabled = false;
+            this.innerHTML = '<i class="fas fa-sync-alt me-1"></i>Atualizar';
+        });
+    });
+});
+
+// Limpa interval quando sair da página
+window.addEventListener('beforeunload', function() {
+    if (intervalId) {
+        clearInterval(intervalId);
+    }
+});
+
+async function carregarJogos() {
+    try {
+        const response = await fetch('{% url "atualizar_placares_api" %}');
+        const data = await response.json();
+        
+        if (data.success) {
+            exibirJogos(data.jogos);
+            
+            // Atualiza estatísticas rápidas
+            if (data.estatisticas) {
+                const stats = data.estatisticas;
+                document.getElementById('stats-quick').innerHTML = 
+                    `<i class="fas fa-chart-line me-1"></i>${stats.total_jogos} jogos | 
+                     🔴 ${stats.ao_vivo} ao vivo | 
+                     ⏰ ${stats.agendados} agendados | 
+                     ✅ ${stats.finalizados} finalizados`;
+            }
+            
+            document.getElementById('ultima-atualizacao').innerHTML = 
+                `<i class="fas fa-sync me-1"></i>Última: ${data.ultima_atualizacao}${data.proxima_atualizacao ? ` | Próxima: ${data.proxima_atualizacao}` : ''}`;
+            
+            // Esconde loading e erro, mostra jogos
+            document.getElementById('loading-spinner').classList.add('d-none');
+            document.getElementById('erro-container').classList.add('d-none');
+            document.getElementById('jogos-container').classList.remove('d-none');
+        } else {
+            throw new Error(data.error || 'Erro desconhecido');
+        }
+    } catch (error) {
+        console.error('Erro ao carregar jogos:', error);
+        
+        // Mostra erro
+        document.getElementById('loading-spinner').classList.add('d-none');
+        document.getElementById('jogos-container').classList.add('d-none');
+        document.getElementById('erro-container').classList.remove('d-none');
+    }
+}
+
+function exibirJogos(jogos) {
+    const container = document.getElementById('lista-jogos');
+    
+    if (!jogos || jogos.length === 0) {
+        container.innerHTML = '';
+        document.getElementById('sem-jogos').classList.remove('d-none');
+        return;
+    }
+    
+    document.getElementById('sem-jogos').classList.add('d-none');
+    
+    container.innerHTML = jogos.map(jogo => {
+        const statusClass = getStatusClass(jogo.status);
+        const statusBadge = getStatusBadge(jogo);
+        const placarDisplay = getPlacarDisplay(jogo);
+        const estatisticasHtml = getEstatisticasHtml(jogo);
+        
+        return `
+            <div class="card jogo-card mb-3 ${statusClass}" data-status="${jogo.status.toLowerCase()}">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <!-- Competição e Status -->
+                        <div class="col-12 mb-2">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <span class="badge competicao-badge text-white">
+                                        <i class="fas fa-trophy me-1"></i>
+                                        ${jogo.competicao}
+                                    </span>
+                                    ${jogo.rodada ? `<span class="badge bg-secondary ms-1">${jogo.rodada}</span>` : ''}
+                                </div>
+                                ${statusBadge}
+                            </div>
+                            ${jogo.estadio ? `<small class="text-muted"><i class="fas fa-map-marker-alt me-1"></i>${jogo.estadio}, ${jogo.cidade}</small>` : ''}
+                        </div>
+                        
+                        <!-- Time Casa -->
+                        <div class="col-4">
+                            <div class="d-flex align-items-center">
+                                ${jogo.escudo_casa ? `<img src="${jogo.escudo_casa}" alt="${jogo.time_casa}" class="escudo-time me-2" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'">` : ''}
+                                <div class="escudo-time me-2 bg-light d-none align-items-center justify-content-center"><i class="fas fa-shield-alt text-muted"></i></div>
+                                <div class="time-info">
+                                    <div class="nome-time text-truncate">${jogo.time_casa}</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Placar -->
+                        <div class="col-4 text-center">
+                            <div class="placar-destaque">
+                                ${placarDisplay}
+                            </div>
+                            ${jogo.ao_vivo ? '<small class="text-danger"><i class="fas fa-circle me-1"></i>AO VIVO</small>' : ''}
+                        </div>
+                        
+                        <!-- Time Visitante -->
+                        <div class="col-4">
+                            <div class="d-flex align-items-center justify-content-end">
+                                <div class="time-info text-end me-2">
+                                    <div class="nome-time text-truncate">${jogo.time_visitante}</div>
+                                </div>
+                                ${jogo.escudo_visitante ? `<img src="${jogo.escudo_visitante}" alt="${jogo.time_visitante}" class="escudo-time" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'">` : ''}
+                                <div class="escudo-time bg-light d-none align-items-center justify-content-center"><i class="fas fa-shield-alt text-muted"></i></div>
+                            </div>
+                        </div>
+                        
+                        <!-- Estatísticas (se disponível) -->
+                        ${estatisticasHtml}
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    aplicarFiltro();
+}
+
+function getEstatisticasHtml(jogo) {
+    if (!jogo.estatisticas) return '';
+    
+    const stats = jogo.estatisticas;
+    const casa = stats.casa || {};
+    const visitante = stats.visitante || {};
+    
+    return `
+        <div class="col-12 mt-3">
+            <div class="collapse" id="stats-${jogo.id}">
+                <div class="card bg-light">
+                    <div class="card-body p-2">
+                        <h6 class="card-title mb-2">
+                            <i class="fas fa-chart-bar me-1"></i>
+                            Estatísticas do Jogo
+                        </h6>
+                        <div class="row text-center small">
+                            ${casa.posse_de_bola || visitante.posse_de_bola ? `
+                            <div class="col-4">
+                                <div class="stat-item">
+                                    <div class="stat-value">${casa.posse_de_bola || '0%'}</div>
+                                    <div class="stat-label">Posse</div>
+                                    <div class="stat-value">${visitante.posse_de_bola || '0%'}</div>
+                                </div>
+                            </div>
+                            ` : ''}
+                            
+                            ${casa.total_chutes || visitante.total_chutes ? `
+                            <div class="col-4">
+                                <div class="stat-item">
+                                    <div class="stat-value">${casa.total_chutes || 0}</div>
+                                    <div class="stat-label">Chutes</div>
+                                    <div class="stat-value">${visitante.total_chutes || 0}</div>
+                                </div>
+                            </div>
+                            ` : ''}
+                            
+                            ${casa.chutes_no_gol || visitante.chutes_no_gol ? `
+                            <div class="col-4">
+                                <div class="stat-item">
+                                    <div class="stat-value">${casa.chutes_no_gol || 0}</div>
+                                    <div class="stat-label">No Gol</div>
+                                    <div class="stat-value">${visitante.chutes_no_gol || 0}</div>
+                                </div>
+                            </div>
+                            ` : ''}
+                            
+                            ${casa.escanteios || visitante.escanteios ? `
+                            <div class="col-4 mt-2">
+                                <div class="stat-item">
+                                    <div class="stat-value">${casa.escanteios || 0}</div>
+                                    <div class="stat-label">Escanteios</div>
+                                    <div class="stat-value">${visitante.escanteios || 0}</div>
+                                </div>
+                            </div>
+                            ` : ''}
+                            
+                            ${casa.faltas || visitante.faltas ? `
+                            <div class="col-4 mt-2">
+                                <div class="stat-item">
+                                    <div class="stat-value">${casa.faltas || 0}</div>
+                                    <div class="stat-label">Faltas</div>
+                                    <div class="stat-value">${visitante.faltas || 0}</div>
+                                </div>
+                            </div>
+                            ` : ''}
+                            
+                            ${casa.cartoes_amarelos || visitante.cartoes_amarelos ? `
+                            <div class="col-4 mt-2">
+                                <div class="stat-item">
+                                    <div class="stat-value text-warning">${casa.cartoes_amarelos || 0}</div>
+                                    <div class="stat-label">Amarelos</div>
+                                    <div class="stat-value text-warning">${visitante.cartoes_amarelos || 0}</div>
+                                </div>
+                            </div>
+                            ` : ''}
+                        </div>
+                        
+                        <div class="text-center mt-2">
+                            <button class="btn btn-sm btn-outline-secondary" 
+                                    onclick="document.getElementById('stats-${jogo.id}').classList.toggle('show')">
+                                <i class="fas fa-chevron-up"></i> Fechar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="text-center mt-2">
+                <button class="btn btn-sm btn-outline-info" 
+                        onclick="document.getElementById('stats-${jogo.id}').classList.toggle('show')"
+                        style="${jogo.estatisticas ? '' : 'display: none;'}">
+                    <i class="fas fa-chart-bar me-1"></i>Ver Estatísticas
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+function getStatusClass(status) {
+    switch(status) {
+        case '1H':
+        case '2H':
+        case 'HT':
+        case 'ET':
+        case 'P':
+        case 'LIVE':
+        case 'IN_PLAY':
+        case 'PAUSED':
+            return 'ao-vivo';
+        case 'FT':
+        case 'AET':
+        case 'PEN':
+        case 'FINISHED':
+            return 'finalizado';
+        case 'TBD':
+        case 'NS':
+        case 'SCHEDULED':
+        case 'TIMED':
+            return 'agendado';
+        default:
+            return '';
+    }
+}
+
+function getStatusBadge(jogo) {
+    switch(jogo.status) {
+        case '1H':
+            return `<span class="badge status-live text-white status-badge pulse">
+                <i class="fas fa-play me-1"></i>
+                ${jogo.minuto}' - 1º Tempo
+            </span>`;
+        case '2H':
+            return `<span class="badge status-live text-white status-badge pulse">
+                <i class="fas fa-play me-1"></i>
+                ${jogo.minuto}' - 2º Tempo
+            </span>`;
+        case 'HT':
+            return `<span class="badge bg-warning text-dark status-badge">
+                <i class="fas fa-pause me-1"></i>
+                INTERVALO
+            </span>`;
+        case 'ET':
+            return `<span class="badge status-live text-white status-badge pulse">
+                <i class="fas fa-play me-1"></i>
+                ${jogo.minuto}' - PRORROGAÇÃO
+            </span>`;
+        case 'P':
+            return `<span class="badge bg-danger text-white status-badge pulse">
+                <i class="fas fa-futbol me-1"></i>
+                PÊNALTIS
+            </span>`;
+        case 'FT':
+        case 'AET':
+        case 'FINISHED':
+            return `<span class="badge bg-success text-white status-badge">
+                <i class="fas fa-check me-1"></i>
+                FINAL
+            </span>`;
+        case 'PEN':
+            return `<span class="badge bg-danger text-white status-badge">
+                <i class="fas fa-futbol me-1"></i>
+                FINAL - PÊNALTIS
+            </span>`;
+        case 'TBD':
+        case 'NS':
+        case 'SCHEDULED':
+        case 'TIMED':
+            const horario = new Date(jogo.horario).toLocaleTimeString('pt-BR', {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            return `<span class="badge bg-warning text-dark status-badge">
+                <i class="fas fa-clock me-1"></i>
+                ${horario}
+            </span>`;
+        default:
+            return `<span class="badge bg-secondary text-white status-badge">${jogo.status}</span>`;
+    }
+}
+
+function getPlacarDisplay(jogo) {
+    if (jogo.gols_casa !== null && jogo.gols_visitante !== null) {
+        return `${jogo.gols_casa} <span class="text-muted">x</span> ${jogo.gols_visitante}`;
+    } else {
+        return `<span class="text-muted">- x -</span>`;
+    }
+}
+
+function aplicarFiltro() {
+    const jogos = document.querySelectorAll('.jogo-card');
+    let visiveisCount = 0;
+    
+    jogos.forEach(jogo => {
+        const status = jogo.dataset.status;
+        let mostrar = false;
+        
+        switch(filtroAtual) {
+            case 'todos':
+                mostrar = true;
+                break;
+            case 'ao-vivo':
+                mostrar = ['1h', '2h', 'ht', 'et', 'p', 'live', 'in_play', 'paused'].includes(status);
+                break;
+            case 'agendados':
+                mostrar = ['tbd', 'ns', 'scheduled', 'timed'].includes(status);
+                break;
+            case 'finalizados':
+                mostrar = ['ft', 'aet', 'pen', 'finished'].includes(status);
+                break;
+        }
+        
+        if (mostrar) {
+            jogo.classList.remove('d-none');
+            visiveisCount++;
+        } else {
+            jogo.classList.add('d-none');
+        }
+    });
+    
+    // Mostra/esconde mensagem de sem jogos
+    if (visiveisCount === 0) {
+        document.getElementById('sem-jogos').classList.remove('d-none');
+    } else {
+        document.getElementById('sem-jogos').classList.add('d-none');
+    }
+}
+</script>
+{% endblock %}

@@ -662,16 +662,28 @@ class ClassificacaoAdmin(admin.ModelAdmin):
 @admin.register(AtualizacaoSite)
 class AtualizacaoSiteAdmin(admin.ModelAdmin):
     """Administração das atualizações do site"""
-    list_display = ('versao', 'titulo', 'data_lancamento', 'ativa', 'usuarios_que_viram')
+    list_display = ('versao', 'titulo', 'data_lancamento', 'ativa', 'tem_link', 'usuarios_que_viram')
     list_filter = ('ativa', 'data_lancamento')
     search_fields = ('versao', 'titulo', 'descricao')
     ordering = ('-data_lancamento',)
+    list_editable = ('ativa',)
     
     fieldsets = (
-        (None, {
+        ('Informações Básicas', {
             'fields': ('versao', 'titulo', 'descricao', 'ativa')
         }),
+        ('Link Opcional', {
+            'fields': ('link_pagina', 'texto_link'),
+            'description': 'Adicione um link para uma página específica que será mostrado na atualização.',
+            'classes': ('collapse',)
+        }),
     )
+    
+    def tem_link(self, obj):
+        """Mostra se a atualização tem link"""
+        return "🔗" if obj.link_pagina else "—"
+    
+    tem_link.short_description = "Link"
     
     def usuarios_que_viram(self, obj):
         """Mostra quantos usuários já viram a atualização"""

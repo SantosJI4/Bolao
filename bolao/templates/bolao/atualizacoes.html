@@ -39,6 +39,15 @@
                                             <div class="update-description">
                                                 {{ atualizacao.descricao|linebreaks }}
                                             </div>
+                                            
+                                            {% if atualizacao.link_pagina %}
+                                            <div class="mt-3">
+                                                <a href="{{ atualizacao.link_pagina }}" class="btn btn-outline-primary btn-sm" target="_blank">
+                                                    <i class="fas fa-external-link-alt me-2"></i>
+                                                    {{ atualizacao.texto_link|default:"Ver Página" }}
+                                                </a>
+                                            </div>
+                                            {% endif %}
                                         </div>
                                     </div>
                                 </div>

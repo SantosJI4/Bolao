@@ -70,7 +70,17 @@ def criar_atualizacao():
     
     descricao = '\n'.join(linhas_descricao)
     
-    ativa = input("📝 Ativar imediatamente? (S/n): ").strip().lower()
+    # Novos campos para link
+    print("\n🔗 Link para página específica (opcional):")
+    link_pagina = input("   URL (deixe vazio se não houver): ").strip()
+    
+    texto_link = ""
+    if link_pagina:
+        texto_link = input("   Texto do botão (ex: 'Ver Jogos ao Vivo'): ").strip()
+        if not texto_link:
+            texto_link = "Ver Página"
+    
+    ativa = input("\n📝 Ativar imediatamente? (S/n): ").strip().lower()
     ativa = ativa != 'n'
     
     print()
@@ -78,6 +88,9 @@ def criar_atualizacao():
     print(f"   Versão: {versao}")
     print(f"   Título: {titulo}")
     print(f"   Ativa: {'Sim' if ativa else 'Não'}")
+    if link_pagina:
+        print(f"   Link: {link_pagina}")
+        print(f"   Texto do botão: {texto_link}")
     print(f"   Descrição:")
     for linha in linhas_descricao:
         print(f"      {linha}")
@@ -94,12 +107,17 @@ def criar_atualizacao():
             versao=versao,
             titulo=titulo,
             descricao=descricao,
+            link_pagina=link_pagina if link_pagina else None,
+            texto_link=texto_link if texto_link else None,
             ativa=ativa
         )
         
         print(f"✅ Atualização {versao} criada com sucesso!")
         print(f"📅 Data: {atualizacao.data_lancamento.strftime('%d/%m/%Y %H:%M')}")
         print(f"🔔 Status: {'Ativa' if ativa else 'Inativa'}")
+        if link_pagina:
+            print(f"🔗 Link: {link_pagina}")
+            print(f"🏷️ Texto do botão: {texto_link}")
         
         if ativa:
             print("💡 A atualização aparecerá para usuários que não a viram!")

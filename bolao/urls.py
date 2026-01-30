@@ -13,4 +13,6 @@ urlpatterns = [
     path('termos/', views.termos_uso, name='termos_uso'),
     path('atualizacoes/', views.atualizacoes, name='atualizacoes'),
     path('marcar-atualizacao-vista/<str:versao>/', views.marcar_atualizacao_vista, name='marcar_atualizacao_vista'),
+    path('ao-vivo/', views.jogos_ao_vivo, name='jogos_ao_vivo'),
+    path('api/atualizar-placares/', views.atualizar_placares_api, name='atualizar_placares_api'),
 ]

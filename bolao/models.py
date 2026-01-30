@@ -296,6 +296,8 @@ class AtualizacaoSite(models.Model):
     versao = models.CharField(max_length=10, unique=True)  # Ex: "1.1", "1.2"
     titulo = models.CharField(max_length=100)
     descricao = models.TextField()
+    link_pagina = models.URLField(blank=True, null=True, help_text="Link para página específica (opcional)")
+    texto_link = models.CharField(max_length=100, blank=True, null=True, help_text="Texto do botão do link (ex: 'Ver Jogos ao Vivo')")
     data_lancamento = models.DateTimeField(auto_now_add=True)
     ativa = models.BooleanField(default=True)  # Se deve mostrar no popup
     
