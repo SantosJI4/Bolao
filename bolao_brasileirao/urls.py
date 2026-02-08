@@ -19,8 +19,11 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from bolao import analytics_views
 
 urlpatterns = [
+    path("admin/analytics/", analytics_views.analytics_dashboard, name='analytics_dashboard'),
+    path("admin/analytics/api/", analytics_views.analytics_api, name='analytics_api'),
     path("admin/", admin.site.urls),
     path("", include('bolao.urls')),
 ]

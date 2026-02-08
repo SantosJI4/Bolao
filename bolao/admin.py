@@ -7,7 +7,7 @@ from django.shortcuts import redirect, render
 from django.contrib import messages
 from django.http import HttpResponseRedirect, JsonResponse
 from django import forms
-from .models import Time, Participante, Rodada, Jogo, Palpite, Classificacao, AtualizacaoSite, AtualizacaoVista
+from .models import Time, Participante, Rodada, Jogo, Palpite, Classificacao, AtualizacaoSite, AtualizacaoVista, SessaoVisita, AcaoUsuario, MetricaDiaria, PaginaPopular
 import re
 
 
@@ -720,3 +720,159 @@ class AtualizacaoVistaAdmin(admin.ModelAdmin):
 admin.site.site_header = "FutAmigo - Painel Administrativo"
 admin.site.site_title = "FutAmigo"
 admin.site.index_title = "Gerenciamento do Bolão"
+
+# Adiciona link para Analytics na página inicial do admin
+from django.urls import reverse
+from django.utils.html import format_html
+
+def analytics_link():
+    return format_html(
+        '<a href="/admin/analytics/" style="color: #0066cc; font-weight: bold;">📊 Dashboard de Analytics</a>'
+    )
+
+# Adiciona o link ao context do admin
+admin.site.index_template = 'admin/index.html'
+
+
+# =================== ADMIN ANALYTICS ===================
+
+@admin.register(SessaoVisita)
+class SessaoVisitaAdmin(admin.ModelAdmin):
+    """Admin para Sessões de Visita"""
+    list_display = [
+        'get_usuario', 'ip_address', 'dispositivo_tipo', 'navegador', 
+        'data_inicio', 'duracao_formatada', 'paginas_visitadas', 'ativo'
+    ]
+    list_filter = [
+        'dispositivo_tipo', 'ativo', 'data_inicio', 'navegador', 'sistema_operacional'
+    ]
+    search_fields = ['ip_address', 'participante__nome_exibicao', 'navegador']
+    readonly_fields = [
+        'session_id', 'ip_address', 'user_agent', 'data_inicio', 'data_fim', 
+        'duracao_minutos', 'paginas_visitadas'
+    ]
+    ordering = ['-data_inicio']
+    date_hierarchy = 'data_inicio'
+    
+    def get_usuario(self, obj):
+        if obj.participante:
+            return format_html(
+                '<strong style="color: #0066cc;">{}</strong>',
+                obj.participante.nome_exibicao
+            )
+        return format_html(
+            '<span style="color: #666;">Anônimo ({})</span>',
+            obj.ip_address
+        )
+    get_usuario.short_description = 'Usuário'
+    
+    def duracao_formatada(self, obj):
+        if obj.duracao_minutos:
+            if obj.duracao_minutos < 1:
+                return f"{int(obj.duracao_minutos * 60)}s"
+            elif obj.duracao_minutos < 60:
+                return f"{obj.duracao_minutos:.1f}min"
+            else:
+                horas = int(obj.duracao_minutos // 60)
+                minutos = int(obj.duracao_minutos % 60)
+                return f"{horas}h {minutos}min"
+        return "Em andamento" if obj.ativo else "N/A"
+    duracao_formatada.short_description = 'Duração'
+    
+    def has_add_permission(self, request):
+        return False
+
+
+@admin.register(AcaoUsuario)
+class AcaoUsuarioAdmin(admin.ModelAdmin):
+    """Admin para Ações dos Usuários"""
+    list_display = [
+        'get_usuario', 'tipo_acao', 'pagina_titulo', 'tempo_resposta_formatado', 
+        'timestamp', 'get_status_code'
+    ]
+    list_filter = ['tipo_acao', 'timestamp', 'sessao__dispositivo_tipo']
+    search_fields = [
+        'sessao__participante__nome_exibicao', 'pagina_titulo', 'pagina_url',
+        'sessao__ip_address'
+    ]
+    readonly_fields = [
+        'sessao', 'tipo_acao', 'pagina_url', 'pagina_titulo', 
+        'tempo_resposta', 'timestamp', 'metadados'
+    ]
+    ordering = ['-timestamp']
+    date_hierarchy = 'timestamp'
+    
+    def get_usuario(self, obj):
+        if obj.sessao.participante:
+            return obj.sessao.participante.nome_exibicao
+        return f"IP: {obj.sessao.ip_address}"
+    get_usuario.short_description = 'Usuário'
+    
+    def tempo_resposta_formatado(self, obj):
+        if obj.tempo_resposta:
+            if obj.tempo_resposta < 1000:
+                return f"{obj.tempo_resposta:.0f}ms"
+            else:
+                return f"{obj.tempo_resposta/1000:.2f}s"
+        return "N/A"
+    tempo_resposta_formatado.short_description = 'Tempo Resp.'
+    
+    def get_status_code(self, obj):
+        if obj.metadados and 'status_code' in obj.metadados:
+            status = obj.metadados['status_code']
+            if status == 200:
+                color = '#28a745'
+            elif status == 404:
+                color = '#ffc107'
+            elif status >= 500:
+                color = '#dc3545'
+            else:
+                color = '#6c757d'
+            return format_html(
+                '<span style="color: {}; font-weight: bold;">{}</span>',
+                color, status
+            )
+        return "N/A"
+    get_status_code.short_description = 'Status'
+    
+    def has_add_permission(self, request):
+        return False
+
+
+@admin.register(MetricaDiaria)
+class MetricaDiariaAdmin(admin.ModelAdmin):
+    """Admin para Métricas Diárias"""
+    list_display = [
+        'data', 'total_visitas', 'visitantes_unicos', 'usuarios_logados',
+        'total_pageviews', 'tempo_medio_formatado', 'palpites_realizados'
+    ]
+    list_filter = ['data']
+    ordering = ['-data']
+    readonly_fields = [
+        'data', 'total_visitas', 'visitantes_unicos', 'usuarios_logados',
+        'usuarios_anonimos', 'total_pageviews', 'tempo_medio_sessao',
+        'bounce_rate', 'palpites_realizados', 'mobile_visitas',
+        'desktop_visitas', 'tablet_visitas'
+    ]
+    
+    def tempo_medio_formatado(self, obj):
+        if obj.tempo_medio_sessao:
+            return f"{obj.tempo_medio_sessao:.1f}min"
+        return "0min"
+    tempo_medio_formatado.short_description = 'Tempo Médio'
+    
+    def has_add_permission(self, request):
+        return False
+
+
+@admin.register(PaginaPopular)
+class PaginaPopularAdmin(admin.ModelAdmin):
+    """Admin para Páginas Populares"""
+    list_display = ['titulo', 'url', 'visitas_hoje', 'visitas_total', 'ultima_atualizacao']
+    list_filter = ['ultima_atualizacao']
+    search_fields = ['titulo', 'url']
+    ordering = ['-visitas_hoje']
+    readonly_fields = ['url', 'titulo', 'visitas_hoje', 'visitas_total', 'ultima_atualizacao']
+    
+    def has_add_permission(self, request):
+        return False

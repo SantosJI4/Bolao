@@ -3,6 +3,8 @@ from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator, MaxValueValidator
 from PIL import Image
 import os
+from django.utils import timezone
+import uuid
 
 
 def redimensionar_imagem_perfil(instance, filename):
@@ -323,3 +325,124 @@ class AtualizacaoVista(models.Model):
     
     def __str__(self):
         return f"{self.participante.nome_exibicao} - {self.atualizacao.versao}"
+
+
+# =================== MODELOS DE ANALYTICS ===================
+
+class SessaoVisita(models.Model):
+    """Modelo para rastrear sessões de usuários no site"""
+    session_id = models.CharField(max_length=100, unique=True, default=uuid.uuid4)
+    ip_address = models.GenericIPAddressField()
+    user_agent = models.TextField()
+    participante = models.ForeignKey(Participante, on_delete=models.CASCADE, null=True, blank=True)
+    data_inicio = models.DateTimeField(auto_now_add=True)
+    data_fim = models.DateTimeField(null=True, blank=True)
+    duracao_minutos = models.FloatField(null=True, blank=True)
+    paginas_visitadas = models.IntegerField(default=0)
+    ativo = models.BooleanField(default=True)
+    
+    # Localização aproximada (opcional)
+    pais = models.CharField(max_length=50, blank=True, null=True)
+    cidade = models.CharField(max_length=100, blank=True, null=True)
+    
+    # Informações do dispositivo
+    dispositivo_tipo = models.CharField(max_length=20, blank=True, null=True)  # mobile, desktop, tablet
+    navegador = models.CharField(max_length=50, blank=True, null=True)
+    sistema_operacional = models.CharField(max_length=50, blank=True, null=True)
+    
+    class Meta:
+        verbose_name = 'Sessão de Visita'
+        verbose_name_plural = 'Sessões de Visitas'
+        ordering = ['-data_inicio']
+    
+    def __str__(self):
+        usuario = self.participante.nome_exibicao if self.participante else f"Anônimo ({self.ip_address})"
+        return f"{usuario} - {self.data_inicio.strftime('%d/%m/%Y %H:%M')}"
+    
+    def finalizar_sessao(self):
+        """Finaliza a sessão e calcula a duração"""
+        self.data_fim = timezone.now()
+        self.ativo = False
+        duracao = self.data_fim - self.data_inicio
+        self.duracao_minutos = duracao.total_seconds() / 60
+        self.save()
+
+
+class AcaoUsuario(models.Model):
+    """Modelo para rastrear ações específicas dos usuários"""
+    TIPOS_ACAO = [
+        ('page_view', 'Visualização de Página'),
+        ('login', 'Login'),
+        ('logout', 'Logout'),
+        ('palpite', 'Palpite Realizado'),
+        ('perfil_edit', 'Edição de Perfil'),
+        ('classificacao_view', 'Ver Classificação'),
+        ('jogos_ao_vivo', 'Ver Jogos ao Vivo'),
+        ('click_button', 'Clique em Botão'),
+        ('form_submit', 'Envio de Formulário'),
+        ('error_404', 'Página Não Encontrada'),
+        ('error_500', 'Erro do Servidor'),
+    ]
+    
+    sessao = models.ForeignKey(SessaoVisita, on_delete=models.CASCADE, related_name='acoes')
+    tipo_acao = models.CharField(max_length=20, choices=TIPOS_ACAO)
+    pagina_url = models.URLField(max_length=500)
+    pagina_titulo = models.CharField(max_length=200, blank=True, null=True)
+    descricao = models.TextField(blank=True, null=True)
+    tempo_resposta = models.FloatField(null=True, blank=True)  # em milissegundos
+    timestamp = models.DateTimeField(auto_now_add=True)
+    
+    # Dados adicionais (JSON)
+    metadados = models.JSONField(null=True, blank=True)
+    
+    class Meta:
+        verbose_name = 'Ação do Usuário'
+        verbose_name_plural = 'Ações dos Usuários'
+        ordering = ['-timestamp']
+    
+    def __str__(self):
+        usuario = self.sessao.participante.nome_exibicao if self.sessao.participante else f"IP: {self.sessao.ip_address}"
+        return f"{usuario} - {self.get_tipo_acao_display()} - {self.timestamp.strftime('%H:%M:%S')}"
+
+
+class MetricaDiaria(models.Model):
+    """Modelo para armazenar métricas diárias agregadas"""
+    data = models.DateField(unique=True)
+    total_visitas = models.IntegerField(default=0)
+    visitantes_unicos = models.IntegerField(default=0)
+    usuarios_logados = models.IntegerField(default=0)
+    usuarios_anonimos = models.IntegerField(default=0)
+    total_pageviews = models.IntegerField(default=0)
+    tempo_medio_sessao = models.FloatField(default=0.0)  # em minutos
+    bounce_rate = models.FloatField(default=0.0)  # taxa de rejeição
+    palpites_realizados = models.IntegerField(default=0)
+    
+    # Dispositivos
+    mobile_visitas = models.IntegerField(default=0)
+    desktop_visitas = models.IntegerField(default=0)
+    tablet_visitas = models.IntegerField(default=0)
+    
+    class Meta:
+        verbose_name = 'Métrica Diária'
+        verbose_name_plural = 'Métricas Diárias'
+        ordering = ['-data']
+    
+    def __str__(self):
+        return f"Métricas de {self.data.strftime('%d/%m/%Y')}"
+
+
+class PaginaPopular(models.Model):
+    """Modelo para rastrear as páginas mais visitadas"""
+    url = models.URLField(max_length=500)
+    titulo = models.CharField(max_length=200)
+    visitas_hoje = models.IntegerField(default=0)
+    visitas_total = models.IntegerField(default=0)
+    ultima_atualizacao = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = 'Página Popular'
+        verbose_name_plural = 'Páginas Populares'
+        ordering = ['-visitas_hoje']
+    
+    def __str__(self):
+        return f"{self.titulo} ({self.visitas_hoje} visitas hoje)"

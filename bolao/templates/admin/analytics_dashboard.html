@@ -1,0 +1,358 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block title %}Dashboard Analytics - FutAmigo{% endblock %}
+
+{% block extrahead %}
+<style>
+    .analytics-card {
+        background: white;
+        border-radius: 8px;
+        padding: 20px;
+        margin: 10px 0;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .metric-card {
+        text-align: center;
+        padding: 20px;
+        margin: 10px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 8px;
+    }
+    
+    .metric-number {
+        font-size: 2.5em;
+        font-weight: bold;
+        margin: 10px 0;
+    }
+    
+    .metric-change {
+        font-size: 0.9em;
+        opacity: 0.8;
+    }
+    
+    .metric-up {
+        color: #4CAF50;
+    }
+    
+    .metric-down {
+        color: #f44336;
+    }
+    
+    .live-indicator {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        background: #4CAF50;
+        border-radius: 50%;
+        animation: pulse 2s infinite;
+        margin-right: 5px;
+    }
+    
+    @keyframes pulse {
+        0% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.2); opacity: 0.7; }
+        100% { transform: scale(1); opacity: 1; }
+    }
+    
+    .table-analytics {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    
+    .table-analytics th,
+    .table-analytics td {
+        padding: 10px;
+        text-align: left;
+        border-bottom: 1px solid #ddd;
+    }
+    
+    .table-analytics th {
+        background-color: #f5f5f5;
+        font-weight: bold;
+    }
+    
+    .device-bar {
+        height: 20px;
+        background: #e0e0e0;
+        border-radius: 10px;
+        overflow: hidden;
+        margin: 5px 0;
+    }
+    
+    .device-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #4CAF50, #2196F3);
+        transition: width 0.3s ease;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="analytics-dashboard">
+    <h1>📊 Dashboard de Analytics</h1>
+    <p>Dados em tempo real do FutAmigo - {{ hoje|date:"d/m/Y" }}</p>
+    
+    <!-- Métricas principais -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 20px 0;">
+        
+        <!-- Visitas -->
+        <div class="metric-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+            <h3>👥 Visitas Hoje</h3>
+            <div class="metric-number">{{ metricas_hoje.visitas|default:0 }}</div>
+            {% if metricas_ontem.visitas %}
+                <div class="metric-change">
+                    {% if metricas_hoje.visitas > metricas_ontem.visitas %}
+                        <span class="metric-up">↗ Maior que ontem</span>
+                    {% elif metricas_hoje.visitas < metricas_ontem.visitas %}
+                        <span class="metric-down">↘ Menor que ontem</span>
+                    {% else %}
+                        = Igual a ontem
+                    {% endif %}
+                    ({{ metricas_ontem.visitas }} ontem)
+                </div>
+            {% else %}
+                <div class="metric-change">Primeiro registro</div>
+            {% endif %}
+        </div>
+        
+        <!-- Usuários únicos -->
+        <div class="metric-card" style="background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%); color: #333;">
+            <h3>🆔 Usuários Únicos</h3>
+            <div class="metric-number">{{ metricas_hoje.usuarios_unicos|default:0 }}</div>
+            <div class="metric-change">IPs únicos hoje</div>
+        </div>
+        
+        <!-- Usuários logados -->
+        <div class="metric-card" style="background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); color: #333;">
+            <h3>🔐 Usuários Logados</h3>
+            <div class="metric-number">{{ metricas_hoje.usuarios_logados|default:0 }}</div>
+            <div class="metric-change">Com conta ativa</div>
+        </div>
+        
+        <!-- Page Views -->
+        <div class="metric-card" style="background: linear-gradient(135deg, #d299c2 0%, #fef9d7 100%); color: #333;">
+            <h3>📄 Page Views</h3>
+            <div class="metric-number">{{ metricas_hoje.pageviews|default:0 }}</div>
+            <div class="metric-change">Páginas visitadas</div>
+        </div>
+        
+        <!-- Tempo médio -->
+        <div class="metric-card" style="background: linear-gradient(135deg, #89f7fe 0%, #66a6ff 100%);">
+            <h3>⏱️ Tempo Médio</h3>
+            <div class="metric-number">
+                {% if metricas_hoje.tempo_medio %}
+                    {{ metricas_hoje.tempo_medio|floatformat:1 }}min
+                {% else %}
+                    0min
+                {% endif %}
+            </div>
+            <div class="metric-change">Por sessão</div>
+        </div>
+        
+        <!-- Sessões ativas -->
+        <div class="metric-card" style="background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);">
+            <h3><span class="live-indicator"></span>Online Agora</h3>
+            <div class="metric-number" id="sessoes-ativas">{{ sessoes_ativas }}</div>
+            <div class="metric-change">Últimos 30min</div>
+        </div>
+        
+    </div>
+    
+    <!-- Seções divididas -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 20px 0;">
+        
+        <!-- Últimas atividades -->
+        <div class="analytics-card">
+            <h3>🕒 Últimas Atividades</h3>
+            <div style="max-height: 300px; overflow-y: auto;">
+                <table class="table-analytics">
+                    <thead>
+                        <tr>
+                            <th>Usuário</th>
+                            <th>Ação</th>
+                            <th>Página</th>
+                            <th>Horário</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ultimas-acoes">
+                        {% for acao in ultimas_acoes %}
+                        <tr>
+                            <td>
+                                {% if acao.sessao.participante %}
+                                    <strong>{{ acao.sessao.participante.nome_exibicao }}</strong>
+                                {% else %}
+                                    <em>{{ acao.sessao.ip_address }}</em>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span style="padding: 2px 6px; background: #f0f0f0; border-radius: 3px; font-size: 0.8em;">
+                                    {{ acao.get_tipo_acao_display }}
+                                </span>
+                            </td>
+                            <td>{{ acao.pagina_titulo|default:"N/A" }}</td>
+                            <td>{{ acao.timestamp|date:"H:i:s" }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" style="text-align: center; color: #666;">Nenhuma atividade recente</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Páginas mais visitadas -->
+        <div class="analytics-card">
+            <h3>🔥 Páginas Populares (Hoje)</h3>
+            <table class="table-analytics">
+                <thead>
+                    <tr>
+                        <th>Página</th>
+                        <th>Visitas</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for pagina in paginas_populares %}
+                    <tr>
+                        <td>{{ pagina.titulo }}</td>
+                        <td><strong>{{ pagina.visitas_hoje }}</strong></td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="2" style="text-align: center; color: #666;">Nenhuma página visitada hoje</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+    </div>
+    
+    <!-- Mais estatísticas -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 20px 0;">
+        
+        <!-- Dispositivos -->
+        <div class="analytics-card">
+            <h3>📱 Dispositivos (7 dias)</h3>
+            {% for device in dispositivos %}
+            <div style="margin: 10px 0;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span>
+                        {% if device.dispositivo_tipo == 'mobile' %}📱
+                        {% elif device.dispositivo_tipo == 'tablet' %}📟
+                        {% else %}💻{% endif %} 
+                        {{ device.dispositivo_tipo|capfirst }}
+                    </span>
+                    <span><strong>{{ device.count }}</strong></span>
+                </div>
+                <div class="device-bar">
+                    <div class="device-fill" style="width: {% widthratio device.count dispositivos.0.count 100 %}%;"></div>
+                </div>
+            </div>
+            {% empty %}
+            <p style="color: #666; text-align: center;">Nenhum dado de dispositivo</p>
+            {% endfor %}
+        </div>
+        
+        <!-- Navegadores -->
+        <div class="analytics-card">
+            <h3>🌐 Navegadores Populares</h3>
+            <table class="table-analytics">
+                <thead>
+                    <tr>
+                        <th>Navegador</th>
+                        <th>Visitas</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for nav in navegadores %}
+                    <tr>
+                        <td>{{ nav.navegador|truncatechars:30 }}</td>
+                        <td>{{ nav.count }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="2" style="text-align: center; color: #666;">Nenhum dado disponível</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+    </div>
+    
+    <!-- Usuários mais ativos -->
+    {% if usuarios_ativos %}
+    <div class="analytics-card">
+        <h3>⭐ Usuários Mais Ativos</h3>
+        <table class="table-analytics">
+            <thead>
+                <tr>
+                    <th>Usuário</th>
+                    <th>Total de Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for usuario in usuarios_ativos %}
+                <tr>
+                    <td>
+                        {% if usuario.tem_foto %}
+                            <img src="{{ usuario.foto_perfil.url }}" style="width: 20px; height: 20px; border-radius: 50%; margin-right: 5px;">
+                        {% endif %}
+                        {{ usuario.nome_exibicao }}
+                    </td>
+                    <td><strong>{{ usuario.total_acoes }}</strong></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+    
+</div>
+
+<script>
+// Atualização em tempo real
+function atualizarDados() {
+    // Atualiza sessões ativas
+    fetch('/admin/analytics/api/?tipo=sessoes_ativas')
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('sessoes-ativas').textContent = data.count;
+        })
+        .catch(error => console.log('Erro ao atualizar sessões ativas:', error));
+    
+    // Atualiza últimas ações
+    fetch('/admin/analytics/api/?tipo=ultimas_acoes')
+        .then(response => response.json())
+        .then(data => {
+            const tbody = document.getElementById('ultimas-acoes');
+            tbody.innerHTML = '';
+            
+            data.acoes.forEach(acao => {
+                const row = `
+                    <tr>
+                        <td><strong>${acao.usuario}</strong></td>
+                        <td><span style="padding: 2px 6px; background: #f0f0f0; border-radius: 3px; font-size: 0.8em;">${acao.acao}</span></td>
+                        <td>${acao.pagina}</td>
+                        <td>${acao.tempo}</td>
+                    </tr>
+                `;
+                tbody.innerHTML += row;
+            });
+        })
+        .catch(error => console.log('Erro ao atualizar ações:', error));
+}
+
+// Atualiza a cada 30 segundos
+setInterval(atualizarDados, 30000);
+
+// Primeira atualização após 5 segundos
+setTimeout(atualizarDados, 5000);
+</script>
+
+{% endblock %}
