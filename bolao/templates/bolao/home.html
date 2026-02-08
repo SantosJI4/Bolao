@@ -27,7 +27,7 @@
             <div class="alert alert-warning" role="alert">
                 <h4 class="alert-heading">Entre para participar!</h4>
                 <p class="mb-2">Faça login com suas credenciais para acessar o sistema de palpites.</p>
-                <a href="{% url 'login' %}" class="btn btn-primary">
+                <a href="{% url 'login' %}" class="btn btn-primary btn-modern">
                     <i class="fas fa-sign-in-alt me-1"></i>
                     Fazer Login
                 </a>
@@ -40,7 +40,7 @@
     <!-- Rodada Atual -->
     {% if rodada_atual %}
     <div class="col-md-8 mb-4">
-        <div class="card">
+        <div class="card card-hover">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">
                     <i class="fas fa-play-circle me-2 text-success"></i>
@@ -77,12 +77,12 @@
                     <div class="col-md-6 text-md-end">
                         {% if user.is_authenticated and participante %}
                             {% if rodada_atual.pode_palpitar %}
-                                <a href="{% url 'rodada_palpites' rodada_atual.id %}" class="btn btn-primary btn-lg">
+                                <a href="{% url 'rodada_palpites' rodada_atual.id %}" class="btn btn-primary btn-lg btn-modern">
                                     <i class="fas fa-edit me-2"></i>
                                     Fazer Palpites
                                 </a>
                             {% else %}
-                                <a href="{% url 'rodada_palpites' rodada_atual.id %}" class="btn btn-outline-primary btn-lg">
+                                <a href="{% url 'rodada_palpites' rodada_atual.id %}" class="btn btn-outline-primary btn-lg btn-modern">
                                     <i class="fas fa-eye me-2"></i>
                                     Ver Palpites
                                 </a>
@@ -107,7 +107,7 @@
 
     <!-- Widget Classificação -->
     <div class="col-md-4 mb-4">
-        <div class="card">
+        <div class="card card-hover">
             <div class="card-header">
                 <h5 class="mb-0">
                     <i class="fas fa-trophy me-2"></i>
@@ -116,7 +116,7 @@
             </div>
             <div class="card-body">
                 <p class="text-center mb-3">
-                    <a href="{% url 'classificacao' %}" class="btn btn-outline-primary btn-sm">
+                    <a href="{% url 'classificacao' %}" class="btn btn-outline-primary btn-sm btn-modern">
                         <i class="fas fa-list me-1"></i>
                         Ver Classificação Completa
                     </a>
@@ -139,7 +139,7 @@
 <div class="row">
     <!-- Próximas Rodadas -->
     <div class="col-md-6 mb-4">
-        <div class="card">
+        <div class="card card-hover">
             <div class="card-header">
                 <h5 class="mb-0">
                     <i class="fas fa-calendar-plus me-2 text-primary"></i>
@@ -177,7 +177,7 @@
 
     <!-- Rodadas Passadas -->
     <div class="col-md-6 mb-4">
-        <div class="card">
+        <div class="card card-hover">
             <div class="card-header">
                 <h5 class="mb-0">
                     <i class="fas fa-history me-2 text-danger"></i>
@@ -196,7 +196,7 @@
                                     {{ rodada.data_fim|date:"d/m/Y" }}
                                 </small>
                             </div>
-                            <a href="{% url 'resultados_rodada' rodada.id %}" class="btn btn-outline-primary btn-sm">
+                            <a href="{% url 'resultados_rodada' rodada.id %}" class="btn btn-outline-primary btn-sm btn-modern">
                                 <i class="fas fa-eye me-1"></i>
                                 Ver Resultados
                             </a>
@@ -217,7 +217,7 @@
 <!-- Seção de Instruções -->
 <div class="row">
     <div class="col-12">
-        <div class="card">
+        <div class="card card-hover">
             <div class="card-header">
                 <h5 class="mb-0">
                     <i class="fas fa-info-circle me-2"></i>
@@ -298,7 +298,7 @@
                 
                 {% if atualizacao_nao_vista.link_pagina %}
                 <div class="text-center mt-3">
-                    <a href="{{ atualizacao_nao_vista.link_pagina }}" class="btn btn-outline-primary" target="_blank">
+                    <a href="{{ atualizacao_nao_vista.link_pagina }}" class="btn btn-outline-primary btn-modern" target="_blank">
                         <i class="fas fa-external-link-alt me-2"></i>
                         {{ atualizacao_nao_vista.texto_link|default:"Ver Página" }}
                     </a>
@@ -313,10 +313,10 @@
                 </div>
             </div>
             <div class="modal-footer border-0 justify-content-center">
-                <button type="button" class="btn btn-outline-secondary me-2" onclick="verTodasAtualizacoes()">
+                <button type="button" class="btn btn-outline-secondary me-2 btn-modern" onclick="verTodasAtualizacoes()">
                     <i class="fas fa-history me-2"></i>Ver Todas as Atualizações
                 </button>
-                <button type="button" class="btn btn-primary" onclick="marcarComoVisto()">
+                <button type="button" class="btn btn-primary btn-modern" onclick="marcarComoVisto()">
                     <i class="fas fa-check me-2"></i>Entendi!
                 </button>
             </div>
