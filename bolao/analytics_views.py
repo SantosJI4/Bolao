@@ -112,6 +112,7 @@ def analytics_dashboard(request):
         'metricas_semana': metricas_semana,
         'usuarios_ativos': usuarios_ativos,
         'hoje': hoje,
+        'agora': timezone.now(),
     }
 
     return render(request, 'admin/analytics_dashboard.html', context)
