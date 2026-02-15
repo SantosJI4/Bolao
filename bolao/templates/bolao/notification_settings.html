@@ -399,8 +399,8 @@ async function requestNotificationPermission() {
                 if (serviceWorkerRegistration) {
                     await serviceWorkerRegistration.showNotification('🎉 FutAmigo', {
                         body: 'Notificações ativadas com sucesso!',
-                        icon: '/static/icons/icon-192x192.png',
-                        badge: '/static/icons/icon-72x72.png',
+                        icon: '/static/futfavi.webp',
+                        badge: '/static/futfavi.webp',
                         tag: 'permission-granted',
                         vibrate: [200, 100, 200],
                         silent: false,
@@ -411,7 +411,7 @@ async function requestNotificationPermission() {
                     // Fallback para desktop (new Notification não funciona no Android)
                     new Notification('🎉 FutAmigo', {
                         body: 'Notificações ativadas com sucesso!',
-                        icon: '/static/icons/icon-192x192.png',
+                        icon: '/static/futfavi.webp',
                         tag: 'permission-granted'
                     });
                 }
@@ -584,7 +584,7 @@ async function testNotification() {
                 console.log('🧪 Fallback: tentando new Notification...');
                 const localNotification = new Notification('🧪 Teste do FutAmigo', {
                     body: 'Notificação de teste local. Se você vê isso, está funcionando!',
-                    icon: '/static/icons/icon-192x192.png',
+                    icon: '/static/futfavi.webp',
                     tag: 'test-local',
                     silent: false
                 });

@@ -954,8 +954,8 @@ self.addEventListener('push', function(event) {
     event.waitUntil(
         self.registration.showNotification(data.title || 'FutAmigo', {
             body: data.body || 'Nova notificação do bolão!',
-            icon: '/static/icons/icon-192x192.png',
-            badge: '/static/icons/icon-72x72.png',
+            icon: '/static/futfavi.webp',
+            badge: '/static/futfavi.webp',
             vibrate: [200, 100, 200],
             tag: 'futamigo-push',
             data: { url: data.url || '/' }

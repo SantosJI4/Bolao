@@ -589,16 +589,29 @@ class ParticipanteAdmin(admin.ModelAdmin):
             
             form = NotificationForm(initial=initial_data)
         
-        # Contexto para template
+        # Contexto para template com estatísticas
         context = {
             'form': form,
             'title': 'Enviar Notificação Personalizada',
             'participantes_count': len(participantes_ids) if participantes_ids else 0,
             'opts': self.model._meta,
             'has_change_permission': True,
+            **self._get_notification_stats(),
         }
         
         return render(request, 'admin/bolao/enviar_notificacao.html', context)
+
+    @staticmethod
+    def _get_notification_stats():
+        """Retorna estatísticas para o painel de notificações"""
+        from datetime import timedelta
+        hoje = timezone.now().date()
+        return {
+            'total_participantes': Participante.objects.filter(ativo=True).count(),
+            'com_notifs_ativadas': NotificationSettings.objects.filter(enabled=True).count(),
+            'com_push_subscription': NotificationSettings.objects.exclude(push_subscription__isnull=True).exclude(push_subscription={}).count(),
+            'notifs_enviadas_hoje': Notification.objects.filter(criada_em__date=hoje).count(),
+        }
 
 
 class JogoInline(admin.TabularInline):
@@ -1251,6 +1264,19 @@ class NotificationAdmin(admin.ModelAdmin):
             'participantes_count': 0,
             'opts': self.model._meta,
             'has_change_permission': True,
+            **self._get_notification_stats(),
         }
         
         return render(request, 'admin/bolao/enviar_notificacao.html', context)
+
+    @staticmethod
+    def _get_notification_stats():
+        """Retorna estatísticas para o painel de notificações"""
+        from datetime import timedelta
+        hoje = timezone.now().date()
+        return {
+            'total_participantes': Participante.objects.filter(ativo=True).count(),
+            'com_notifs_ativadas': NotificationSettings.objects.filter(enabled=True).count(),
+            'com_push_subscription': NotificationSettings.objects.exclude(push_subscription__isnull=True).exclude(push_subscription={}).count(),
+            'notifs_enviadas_hoje': Notification.objects.filter(criada_em__date=hoje).count(),
+        }
