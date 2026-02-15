@@ -1,4 +1,4 @@
-const CACHE_NAME = 'futamigo-v1';
+const CACHE_NAME = 'futamigo-v2-hotfix';
 const urlsToCache = [
     '/',
     '/static/futfavi.webp',
@@ -31,6 +31,9 @@ self.addEventListener('fetch', function(event) {
     if (event.request.url.includes('/login/') || 
         event.request.url.includes('/logout/') || 
         event.request.url.includes('/admin/') ||
+        event.request.url.includes('/offline/') || // IMPORTANTE: não interceptar página offline
+        event.request.url.includes('/manifest.json') || // não interceptar manifest
+        event.request.url.includes('/sw.js') || // não interceptar o próprio SW
         event.request.url.includes('api/') ||
         event.request.url.includes('/perfil/') ||
         event.request.url.includes('/palpites/') ||

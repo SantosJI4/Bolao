@@ -227,30 +227,52 @@
         window.addEventListener('online', updateConnectionStatus);
         window.addEventListener('offline', updateConnectionStatus);
         
-        // Auto-retry quando volta online
+        // Auto-retry quando volta online (com debounce)
+        let onlineTimeout;
         window.addEventListener('online', () => {
-            setTimeout(() => {
+            clearTimeout(onlineTimeout);
+            onlineTimeout = setTimeout(() => {
+                autoCheckEnabled = false; // Para outros checks
                 window.location.href = '/';
-            }, 1000);
+            }, 2000); // Aguarda 2s para estabilizar conexão
         });
         
         // Status inicial
         updateConnectionStatus();
         
-        // Auto-check a cada 30 segundos
-        setInterval(() => {
-            if (navigator.onLine) {
-                fetch('/', { method: 'HEAD', cache: 'no-cache' })
-                    .then(response => {
-                        if (response.ok) {
-                            window.location.href = '/';
-                        }
+        // Auto-check apenas se necessário (2 minutos para reduzir requisições)
+        let autoCheckEnabled = true;
+        
+        function startAutoCheck() {
+            if (!autoCheckEnabled) return;
+            
+            setTimeout(() => {
+                if (navigator.onLine && autoCheckEnabled) {
+                    fetch('/', { 
+                        method: 'HEAD', 
+                        cache: 'no-cache',
+                        signal: AbortSignal.timeout(5000) // timeout de 5s
                     })
-                    .catch(() => {
-                        // Ainda offline
-                    });
-            }
-        }, 30000);
+                        .then(response => {
+                            if (response.ok) {
+                                autoCheckEnabled = false; // Para os checks
+                                window.location.href = '/';
+                            }
+                        })
+                        .catch(() => {
+                            // Ainda offline, continua tentando
+                            if (autoCheckEnabled) {
+                                startAutoCheck();
+                            }
+                        });
+                } else if (autoCheckEnabled) {
+                    startAutoCheck();
+                }
+            }, 120000); // 2 minutos
+        }
+        
+        // Inicia auto-check
+        startAutoCheck();
     </script>
 </body>
 </html>
