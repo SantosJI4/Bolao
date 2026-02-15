@@ -11,10 +11,40 @@
                 <i class="fas fa-{% if pode_palpitar %}edit{% else %}eye{% endif %} me-2"></i>
                 {% if pode_palpitar %}Palpites{% else %}Visualizar Palpites{% endif %} - {{ rodada }}
             </h1>
-            <a href="{% url 'home' %}" class="btn btn-outline-secondary">
-                <i class="fas fa-arrow-left me-1"></i>
-                Voltar
-            </a>
+            <div class="d-flex gap-2">
+                <!-- Botão Instalar PWA -->
+                <button id="installPWA" class="btn btn-success d-none" title="Instalar FutAmigo no dispositivo">
+                    <i class="fas fa-download me-1"></i>
+                    <span class="d-none d-sm-inline">Instalar App</span>
+                </button>
+                
+                <a href="{% url 'home' %}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-1"></i>
+                    Voltar
+                </a>
+            </div>
+        </div>
+        
+        <!-- Alert para instalação PWA -->
+        <div id="pwaAlert" class="alert alert-info alert-dismissible fade show d-none" role="alert">
+            <div class="d-flex align-items-center">
+                <i class="fas fa-mobile-alt me-3 fs-4"></i>
+                <div>
+                    <h6 class="alert-heading mb-1">Instale o FutAmigo no seu dispositivo!</h6>
+                    <p class="mb-2 small">
+                        Tenha acesso rápido aos seus palpites direto da tela inicial do seu celular/tablet.
+                    </p>
+                    <div class="d-flex gap-2">
+                        <button id="installPWAFromAlert" class="btn btn-success btn-sm">
+                            <i class="fas fa-download me-1"></i>
+                            Instalar Agora
+                        </button>
+                        <button id="dismissPWAAlert" class="btn btn-outline-secondary btn-sm">
+                            Agora não
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
         
         {% if pode_palpitar %}
@@ -102,7 +132,7 @@
                                            min="0" 
                                            max="20"
                                            value="{% with palpite=palpites_existentes|dict_item:jogo.id %}{% if palpite %}{{ palpite.gols_casa_palpite }}{% endif %}{% endwith %}"
-                                           placeholder="0">
+                                           placeholder="">
                                 </div>
                             </div>
                             
@@ -361,4 +391,172 @@
 </div>
 {% endif %}
 
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// PWA Installation
+let deferredPrompt;
+const installButton = document.getElementById('installPWA');
+const installButtonFromAlert = document.getElementById('installPWAFromAlert');
+const pwaAlert = document.getElementById('pwaAlert');
+const dismissAlertBtn = document.getElementById('dismissPWAAlert');
+
+// Detectar se PWA pode ser instalada
+window.addEventListener('beforeinstallprompt', (e) => {
+    console.log('PWA pode ser instalada');
+    e.preventDefault();
+    deferredPrompt = e;
+    
+    // Mostrar botão de instalação
+    installButton.classList.remove('d-none');
+    
+    // Mostrar alert se não foi dispensado antes
+    if (!localStorage.getItem('pwa-alert-dismissed')) {
+        pwaAlert.classList.remove('d-none');
+    }
+});
+
+// Função para instalar PWA
+function installPWA() {
+    if (deferredPrompt) {
+        deferredPrompt.prompt();
+        
+        deferredPrompt.userChoice.then((choiceResult) => {
+            if (choiceResult.outcome === 'accepted') {
+                console.log('PWA instalada com sucesso');
+                // Esconder elementos de instalação
+                installButton.classList.add('d-none');
+                pwaAlert.classList.add('d-none');
+                
+                // Mostrar mensagem de sucesso
+                showToast('FutAmigo instalado com sucesso! 🎉', 'success');
+            } else {
+                console.log('Instalação cancelada pelo usuário');
+                showToast('Instalação cancelada', 'info');
+            }
+            deferredPrompt = null;
+        });
+    } else {
+        // Para iOS ou quando PWA não está disponível
+        showInstallInstructions();
+    }
+}
+
+// Event listeners para botões de instalação
+if (installButton) installButton.addEventListener('click', installPWA);
+if (installButtonFromAlert) installButtonFromAlert.addEventListener('click', installPWA);
+
+// Dispensar alert
+if (dismissAlertBtn) {
+    dismissAlertBtn.addEventListener('click', () => {
+        pwaAlert.classList.add('d-none');
+        localStorage.setItem('pwa-alert-dismissed', 'true');
+    });
+}
+
+// Detectar se já está instalada
+window.addEventListener('appinstalled', (evt) => {
+    console.log('PWA foi instalada');
+    if (installButton) installButton.classList.add('d-none');
+    if (pwaAlert) pwaAlert.classList.add('d-none');
+    showToast('FutAmigo instalado com sucesso! 🎉', 'success');
+});
+
+// Instruções para iOS e outros casos
+function showInstallInstructions() {
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const isInStandaloneMode = ('standalone' in window.navigator) && (window.navigator.standalone);
+    
+    if (isIOS && !isInStandaloneMode) {
+        // Instruções para iOS
+        const modalElement = document.getElementById('iosInstallModal') || createIOSModal();
+        const modal = new bootstrap.Modal(modalElement);
+        modal.show();
+    } else {
+        showToast('Para criar um atalho, use as opções do seu navegador', 'info');
+    }
+}
+
+// Criar modal com instruções para iOS
+function createIOSModal() {
+    const modalHTML = `
+        <div class="modal fade" id="iosInstallModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            <i class="fab fa-apple me-2"></i>
+                            Instalar no iOS
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body text-center">
+                        <div class="mb-3">
+                            <i class="fas fa-mobile-alt fa-3x text-primary"></i>
+                        </div>
+                        <h6>Para instalar o FutAmigo no seu iPhone/iPad:</h6>
+                        <ol class="text-start mt-3">
+                            <li class="mb-2">
+                                <i class="fas fa-share me-2 text-primary"></i>
+                                Toque no botão <strong>Compartilhar</strong> no Safari
+                            </li>
+                            <li class="mb-2">
+                                <i class="fas fa-plus-square me-2 text-success"></i>
+                                Selecione <strong>"Adicionar à Tela Inicial"</strong>
+                            </li>
+                            <li class="mb-2">
+                                <i class="fas fa-edit me-2 text-warning"></i>
+                                Confirme o nome e toque em <strong>"Adicionar"</strong>
+                            </li>
+                        </ol>
+                        <p class="text-muted small">
+                            O ícone do FutAmigo aparecerá na sua tela inicial!
+                        </p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-primary" data-bs-dismiss="modal">
+                            Entendi!
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    return document.getElementById('iosInstallModal');
+}
+
+// Função para mostrar toasts
+function showToast(message, type = 'info') {
+    const toastHTML = `
+        <div class="toast align-items-center text-bg-${type} border-0" role="alert" style="position: fixed; top: 20px; right: 20px; z-index: 9999;">
+            <div class="d-flex">
+                <div class="toast-body">
+                    ${message}
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', toastHTML);
+    const toastElement = document.body.lastElementChild;
+    const toast = new bootstrap.Toast(toastElement);
+    toast.show();
+    
+    // Remover elemento após esconder
+    toastElement.addEventListener('hidden.bs.toast', () => {
+        toastElement.remove();
+    });
+}
+
+// Verificar se está em modo standalone (já instalada)
+if (window.matchMedia('(display-mode: standalone)').matches) {
+    console.log('PWA executando em modo standalone');
+    if (installButton) installButton.classList.add('d-none');
+    if (pwaAlert) pwaAlert.classList.add('d-none');
+}
+</script>
 {% endblock %}

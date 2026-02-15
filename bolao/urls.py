@@ -15,4 +15,11 @@ urlpatterns = [
     path('marcar-atualizacao-vista/<str:versao>/', views.marcar_atualizacao_vista, name='marcar_atualizacao_vista'),
     path('ao-vivo/', views.jogos_ao_vivo, name='jogos_ao_vivo'),
     path('api/atualizar-placares/', views.atualizar_placares_api, name='atualizar_placares_api'),
+    # PWA URLs
+    path('manifest.json', views.manifest, name='manifest'),
+    path('sw.js', views.service_worker, name='service_worker'),
+    # Notification URLs
+    path('notificacoes/', views.notification_settings, name='notification_settings'),
+    path('api/save-push-subscription/', views.save_push_subscription, name='save_push_subscription'),
+    path('api/test-notification/', views.test_notification, name='test_notification'),
 ]

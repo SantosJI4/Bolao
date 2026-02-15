@@ -2,20 +2,45 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import authenticate, login as auth_login, logout as auth_logout
 from django.contrib import messages
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_POST
 from django.utils import timezone
 from django.db.models import Q, F
 from django.conf import settings
-from .models import Rodada, Jogo, Palpite, Participante, Classificacao, Time
+import os
+import json
+from .models import Rodada, Jogo, Palpite, Participante, Classificacao, Time, NotificationSettings, Notification
 from .forms import PerfilParticipanteForm
 
 
 def home(request):
     """Página inicial mostrando rodadas e status"""
-    rodada_atual = Rodada.objects.filter(ativa=True).first()
-    rodadas_futuras = Rodada.objects.filter(data_inicio__gt=timezone.now()).order_by('numero')[:3]
-    rodadas_passadas = Rodada.objects.filter(data_fim__lt=timezone.now()).order_by('-numero')[:3]
+    # Busca rodadas ativas, ordenadas por número
+    rodadas_ativas = Rodada.objects.filter(ativa=True).order_by('numero')
+    
+    # Rodada atual: a primeira ativa que está no período correto ou a mais próxima
+    agora = timezone.now()
+    rodada_atual = None
+    
+    # Primeiro tenta pegar uma rodada ativa que está no período correto (entre data_inicio e data_fim)
+    for rodada in rodadas_ativas:
+        if rodada.data_inicio <= agora <= rodada.data_fim:
+            rodada_atual = rodada
+            break
+    
+    # Se não achou nenhuma no período, pega a próxima rodada ativa
+    if not rodada_atual:
+        rodada_atual = rodadas_ativas.filter(data_inicio__gt=agora).first()
+    
+    # Se ainda não achou, pega a última rodada ativa (caso todas já tenham passado)
+    if not rodada_atual:
+        rodada_atual = rodadas_ativas.last()
+    
+    # Rodadas futuras: ativas e que ainda não começaram
+    rodadas_futuras = rodadas_ativas.filter(data_inicio__gt=agora).exclude(id=rodada_atual.id if rodada_atual else None)[:3]
+    
+    # Rodadas passadas: ativas e que já terminaram
+    rodadas_passadas = rodadas_ativas.filter(data_fim__lt=agora).order_by('-numero')[:3]
     
     # Se o usuário estiver logado, pegar o participante
     participante = None
@@ -723,4 +748,203 @@ def extrair_estatisticas(jogo):
         
     except Exception:
         return None
+
+
+def manifest(request):
+    """Serve o manifest.json com Content-Type correto"""
+    try:
+        manifest_path = os.path.join(settings.STATIC_ROOT or settings.BASE_DIR / 'static', 'manifest.json')
+        
+        # Se não encontrar no STATIC_ROOT, tenta no diretório static do projeto
+        if not os.path.exists(manifest_path):
+            manifest_path = os.path.join(settings.BASE_DIR, 'static', 'manifest.json')
+        
+        with open(manifest_path, 'r', encoding='utf-8') as f:
+            manifest_data = json.load(f)
+        
+        return JsonResponse(manifest_data, content_type='application/manifest+json')
+    
+    except FileNotFoundError:
+        # Se não encontrar o arquivo, retorna um manifest básico
+        manifest_data = {
+            "name": "FutAmigo - Bolão de Futebol",
+            "short_name": "FutAmigo",
+            "start_url": "/",
+            "display": "standalone",
+            "background_color": "#ffffff",
+            "theme_color": "#000000"
+        }
+        return JsonResponse(manifest_data, content_type='application/manifest+json')
+
+
+def service_worker(request):
+    """Serve o service worker com Content-Type correto"""
+    try:
+        sw_path = os.path.join(settings.STATIC_ROOT or settings.BASE_DIR / 'static', 'sw.js')
+        
+        # Se não encontrar no STATIC_ROOT, tenta no diretório static do projeto
+        if not os.path.exists(sw_path):
+            sw_path = os.path.join(settings.BASE_DIR, 'static', 'sw.js')
+        
+        with open(sw_path, 'r', encoding='utf-8') as f:
+            sw_content = f.read()
+        
+        return HttpResponse(sw_content, content_type='application/javascript')
+    
+    except FileNotFoundError:
+        # Service worker básico caso não encontre o arquivo
+        basic_sw = """
+        const CACHE_NAME = 'futamigo-v1';
+        
+        self.addEventListener('install', function(event) {
+            console.log('Service Worker instalado');
+        });
+        
+        self.addEventListener('fetch', function(event) {
+            // Estratégia básica de cache
+        });
+        """
+        return HttpResponse(basic_sw, content_type='application/javascript')
+
+
+@login_required
+def notification_settings(request):
+    """Página de configurações de notificações"""
+    participante = request.user.participante
+    
+    # Garantir que existe uma configuração de notificação
+    settings, created = NotificationSettings.objects.get_or_create(participante=participante)
+    
+    if request.method == 'POST':
+        # Atualizar configurações
+        settings.enabled = request.POST.get('enabled') == 'on'
+        settings.nova_rodada = request.POST.get('nova_rodada') == 'on'
+        settings.lembrete_prazo = request.POST.get('lembrete_prazo') == 'on'
+        settings.resultados_publicados = request.POST.get('resultados_publicados') == 'on'
+        settings.ranking_atualizado = request.POST.get('ranking_atualizado') == 'on'
+        settings.save()
+        
+        messages.success(request, 'Configurações de notificações atualizadas com sucesso!')
+        return JsonResponse({'success': True})
+    
+    # Histórico de notificações (últimas 10)
+    historico = Notification.objects.filter(participante=participante)[:10]
+    
+    context = {
+        'settings': settings,
+        'historico': historico,
+        'permission_supported': True,
+    }
+    return render(request, 'bolao/notification_settings.html', context)
+
+
+@login_required
+@require_POST
+def save_push_subscription(request):
+    """Salva a subscrição push do usuário"""
+    try:
+        import json
+        
+        participante = request.user.participante
+        settings, created = NotificationSettings.objects.get_or_create(participante=participante)
+        
+        # Receber dados da subscrição do frontend
+        subscription_data = json.loads(request.body)
+        
+        # Salvar os dados da subscrição
+        settings.push_subscription = subscription_data
+        settings.save()
+        
+        return JsonResponse({'success': True, 'message': 'Subscrição salva com sucesso!'})
+    
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+
+@login_required  
+@require_POST
+def test_notification(request):
+    """Envia uma notificação de teste"""
+    try:
+        participante = request.user.participante
+        
+        # Criar notificação de teste
+        notification = Notification.objects.create(
+            participante=participante,
+            tipo='sistema',
+            titulo='🎉 Teste de Notificação',
+            mensagem='Se você está vendo isso, as notificações estão funcionando perfeitamente!',
+            url_acao=request.build_absolute_uri('/'),
+        )
+        
+        # Tentar enviar notificação
+        success = send_push_notification(notification)
+        
+        if success:
+            messages.success(request, 'Notificação de teste enviada com sucesso!')
+            return JsonResponse({'success': True, 'message': 'Teste enviado!'})
+        else:
+            return JsonResponse({'success': False, 'error': 'Falha ao enviar notificação'})
+            
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+
+def send_push_notification(notification):
+    """Envia uma notificação push (preparado para implementação futura)"""
+    try:
+        # Aqui será implementado o envio real via web-push
+        # Por enquanto, apenas simula o envio
+        notification.status = 'sent'
+        notification.enviada_em = timezone.now()
+        notification.save()
+        
+        return True
+    
+    except Exception as e:
+        notification.status = 'failed'
+        notification.error_message = str(e)
+        notification.save()
+        return False
+
+
+def send_notification_to_users(tipo, titulo, mensagem, rodada=None, url_acao=''):
+    """Envia notificação para todos os usuários que têm esse tipo ativado"""
+    from .models import NotificationSettings, Notification
+    
+    # Filtrar usuários que têm o tipo de notificação ativado
+    field_map = {
+        'nova_rodada': 'nova_rodada',
+        'lembrete_prazo': 'lembrete_prazo', 
+        'resultados': 'resultados_publicados',
+        'ranking': 'ranking_atualizado',
+    }
+    
+    if tipo in field_map:
+        filter_kwargs = {
+            'enabled': True,
+            field_map[tipo]: True
+        }
+        settings_queryset = NotificationSettings.objects.filter(**filter_kwargs)
+    else:
+        # Para notificações de sistema, enviar para todos com notificações ativadas
+        settings_queryset = NotificationSettings.objects.filter(enabled=True)
+    
+    notifications_created = []
+    
+    for setting in settings_queryset:
+        notification = Notification.objects.create(
+            participante=setting.participante,
+            tipo=tipo,
+            titulo=titulo,
+            mensagem=mensagem,
+            rodada_relacionada=rodada,
+            url_acao=url_acao
+        )
+        notifications_created.append(notification)
+        
+        # Tentar enviar push notification
+        send_push_notification(notification)
+    
+    return len(notifications_created)
 

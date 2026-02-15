@@ -446,3 +446,79 @@ class PaginaPopular(models.Model):
     
     def __str__(self):
         return f"{self.titulo} ({self.visitas_hoje} visitas hoje)"
+
+
+class NotificationSettings(models.Model):
+    """Configurações de notificações para cada participante"""
+    participante = models.OneToOneField(Participante, on_delete=models.CASCADE, related_name='notification_settings')
+    enabled = models.BooleanField(default=True, verbose_name='Notificações Ativadas')
+    
+    # Tipos de notificações
+    nova_rodada = models.BooleanField(default=True, verbose_name='Nova rodada disponível')
+    lembrete_prazo = models.BooleanField(default=True, verbose_name='Lembrete de prazo')
+    resultados_publicados = models.BooleanField(default=True, verbose_name='Resultados publicados')
+    ranking_atualizado = models.BooleanField(default=True, verbose_name='Ranking atualizado')
+    
+    # Token para Push Notifications
+    push_subscription = models.JSONField(null=True, blank=True, verbose_name='Dados de subscrição push')
+    
+    data_criacao = models.DateTimeField(auto_now_add=True)
+    data_atualizacao = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = 'Configuração de Notificações'
+        verbose_name_plural = 'Configurações de Notificações'
+    
+    def __str__(self):
+        status = "Ativadas" if self.enabled else "Desativadas"
+        return f"{self.participante.nome_exibicao} - Notificações {status}"
+
+
+class Notification(models.Model):
+    """Modelo para armazenar histórico de notificações enviadas"""
+    TIPO_CHOICES = [
+        ('nova_rodada', 'Nova Rodada'),
+        ('lembrete_prazo', 'Lembrete de Prazo'),
+        ('resultados', 'Resultados Publicados'),
+        ('ranking', 'Ranking Atualizado'),
+        ('sistema', 'Notificação do Sistema'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('pending', 'Pendente'),
+        ('sent', 'Enviada'),
+        ('delivered', 'Entregue'),
+        ('failed', 'Falhou'),
+        ('clicked', 'Clicada'),
+    ]
+    
+    participante = models.ForeignKey(Participante, on_delete=models.CASCADE, related_name='notifications')
+    tipo = models.CharField(max_length=20, choices=TIPO_CHOICES)
+    titulo = models.CharField(max_length=100)
+    mensagem = models.TextField()
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
+    
+    # Metadados
+    rodada_relacionada = models.ForeignKey(Rodada, on_delete=models.SET_NULL, null=True, blank=True)
+    url_acao = models.URLField(max_length=200, blank=True, help_text='URL para onde a notificação direciona')
+    
+    # Timestamps
+    criada_em = models.DateTimeField(auto_now_add=True)
+    enviada_em = models.DateTimeField(null=True, blank=True)
+    clicada_em = models.DateTimeField(null=True, blank=True)
+    
+    # Dados técnicos
+    push_id = models.CharField(max_length=100, blank=True, help_text='ID da notificação push')
+    error_message = models.TextField(blank=True, help_text='Mensagem de erro caso falhe')
+    
+    class Meta:
+        verbose_name = 'Notificação'
+        verbose_name_plural = 'Notificações'
+        ordering = ['-criada_em']
+        indexes = [
+            models.Index(fields=['participante', 'status']),
+            models.Index(fields=['tipo', 'criada_em']),
+        ]
+    
+    def __str__(self):
+        return f"{self.participante.nome_exibicao} - {self.get_tipo_display()}"

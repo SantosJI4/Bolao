@@ -7,8 +7,9 @@ from django.shortcuts import redirect, render
 from django.contrib import messages
 from django.http import HttpResponseRedirect, JsonResponse
 from django import forms
-from .models import Time, Participante, Rodada, Jogo, Palpite, Classificacao, AtualizacaoSite, AtualizacaoVista, SessaoVisita, AcaoUsuario, MetricaDiaria, PaginaPopular
+from .models import Time, Participante, Rodada, Jogo, Palpite, Classificacao, AtualizacaoSite, AtualizacaoVista, SessaoVisita, AcaoUsuario, MetricaDiaria, PaginaPopular, NotificationSettings, Notification
 import re
+from django.utils import timezone
 
 
 class ResultadosLoteForm(forms.Form):
@@ -58,6 +59,93 @@ class ResultadosLoteForm(forms.Form):
             resultados_validados.append((gols_casa, gols_visitante))
         
         return resultados_validados
+
+
+class NotificationForm(forms.Form):
+    """Formulário para enviar notificações personalizadas"""
+    TIPO_CHOICES = [
+        ('sistema', 'Notificação do Sistema'),
+        ('nova_rodada', 'Nova Rodada'),
+        ('lembrete_prazo', 'Lembrete de Prazo'),
+        ('resultados', 'Resultados Publicados'),
+        ('ranking', 'Ranking Atualizado'),
+    ]
+    
+    DESTINATARIOS_CHOICES = [
+        ('todos', 'Todos os Participantes'),
+        ('ativos', 'Apenas Participantes Ativos'),
+        ('com_notifs', 'Apenas com Notificações Ativadas'),
+        ('selecionados', 'Participantes Selecionados'),
+    ]
+    
+    tipo = forms.ChoiceField(
+        choices=TIPO_CHOICES,
+        initial='sistema',
+        label='Tipo de Notificação',
+        help_text='Escolha o tipo de notificação'
+    )
+    
+    titulo = forms.CharField(
+        max_length=100,
+        label='Título',
+        help_text='Título da notificação (máximo 100 caracteres)',
+        widget=forms.TextInput(attrs={'placeholder': 'Ex: 🎉 Novidade no FutAmigo!'})
+    )
+    
+    mensagem = forms.CharField(
+        widget=forms.Textarea(attrs={
+            'rows': 4,
+            'placeholder': 'Digite a mensagem da notificação...\nDica: Use emojis para tornar mais atrativa! 🚀'
+        }),
+        label='Mensagem',
+        help_text='Conteúdo da notificação'
+    )
+    
+    url_acao = forms.URLField(
+        required=False,
+        label='URL de Ação (Opcional)',
+        help_text='URL para onde direcionar quando a notificação for clicada',
+        widget=forms.URLInput(attrs={'placeholder': '/classificacao/'})
+    )
+    
+    destinatarios = forms.ChoiceField(
+        choices=DESTINATARIOS_CHOICES,
+        initial='com_notifs',
+        label='Destinatários',
+        help_text='Para quem enviar a notificação'
+    )
+    
+    participantes_selecionados = forms.ModelMultipleChoiceField(
+        queryset=Participante.objects.filter(ativo=True),
+        required=False,
+        label='Participantes Específicos',
+        help_text='Só é usado se "Participantes Selecionados" for escolhido acima',
+        widget=admin.widgets.FilteredSelectMultiple('participantes', False)
+    )
+    
+    rodada_relacionada = forms.ModelChoiceField(
+        queryset=Rodada.objects.all(),
+        required=False,
+        label='Rodada Relacionada (Opcional)',
+        help_text='Se a notificação for sobre uma rodada específica'
+    )
+    
+    enviar_imediatamente = forms.BooleanField(
+        required=False,
+        initial=True,
+        label='Enviar Imediatamente',
+        help_text='Se marcado, envia agora. Senão, agenda para envio posterior'
+    )
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        destinatarios = cleaned_data.get('destinatarios')
+        participantes_selecionados = cleaned_data.get('participantes_selecionados')
+        
+        if destinatarios == 'selecionados' and not participantes_selecionados:
+            raise forms.ValidationError('Selecione pelo menos um participante quando escolher "Participantes Selecionados"')
+        
+        return cleaned_data
 
 
 class PalpitesLoteForm(forms.Form):
@@ -260,7 +348,7 @@ class ParticipanteAdmin(admin.ModelAdmin):
     list_filter = ('ativo', 'invisivel', 'data_cadastro')
     search_fields = ('nome_exibicao', 'user__username', 'user__email')
     readonly_fields = ('data_cadastro', 'pontos_totais')
-    actions = ['inserir_palpites_rapido']
+    actions = ['inserir_palpites_rapido', 'enviar_notificacao_personalizada']
     
     def foto_preview(self, obj):
         if obj.foto_perfil:
@@ -407,6 +495,110 @@ class ParticipanteAdmin(admin.ModelAdmin):
             return JsonResponse({'error': 'Rodada não encontrada'}, status=404)
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=500)
+
+    def enviar_notificacao_personalizada(self, request, queryset):
+        """Action para enviar notificação personalizada para participantes selecionados"""
+        participantes_ids = list(queryset.values_list('id', flat=True))
+        
+        if not participantes_ids:
+            messages.error(request, "Nenhum participante selecionado!")
+            return
+        
+        # Redirect para página de notificação personalizada com IDs dos participantes
+        ids_str = ','.join(map(str, participantes_ids))
+        url = f'/admin/bolao/participante/enviar-notificacao/?participantes={ids_str}'
+        return HttpResponseRedirect(url)
+    enviar_notificacao_personalizada.short_description = "🔔 Enviar notificação personalizada"
+
+    def enviar_notificacao_view(self, request):
+        """Página para enviar notificação personalizada"""
+        # IDs dos participantes (se vem da action)
+        participantes_ids = request.GET.get('participantes', '').split(',') if request.GET.get('participantes') else []
+        
+        if request.method == 'POST':
+            form = NotificationForm(request.POST)
+            
+            if form.is_valid():
+                # Obter dados do formulário
+                tipo = form.cleaned_data['tipo']
+                titulo = form.cleaned_data['titulo']
+                mensagem = form.cleaned_data['mensagem']
+                url_acao = form.cleaned_data.get('url_acao', '')
+                destinatarios = form.cleaned_data['destinatarios']
+                participantes_selecionados = form.cleaned_data.get('participantes_selecionados', [])
+                rodada_relacionada = form.cleaned_data.get('rodada_relacionada')
+                enviar_imediatamente = form.cleaned_data['enviar_imediatamente']
+                
+                # Determinar participantes para envio
+                if destinatarios == 'todos':
+                    participantes = Participante.objects.all()
+                elif destinatarios == 'ativos':
+                    participantes = Participante.objects.filter(ativo=True)
+                elif destinatarios == 'com_notifs':
+                    participantes = Participante.objects.filter(
+                        ativo=True,
+                        notification_settings__enabled=True
+                    )
+                elif destinatarios == 'selecionados':
+                    if participantes_ids:
+                        # Usar IDs da action
+                        participantes = Participante.objects.filter(id__in=participantes_ids)
+                    else:
+                        # Usar participantes do formulário
+                        participantes = participantes_selecionados
+                
+                # Criar notificações
+                notifications_created = []
+                
+                for participante in participantes:
+                    notification = Notification.objects.create(
+                        participante=participante,
+                        tipo=tipo,
+                        titulo=titulo,
+                        mensagem=mensagem,
+                        rodada_relacionada=rodada_relacionada,
+                        url_acao=url_acao
+                    )
+                    notifications_created.append(notification)
+                
+                # Enviar notificações se solicitado
+                if enviar_imediatamente:
+                    from .views import send_push_notification
+                    
+                    enviadas = 0
+                    for notification in notifications_created:
+                        if send_push_notification(notification):
+                            enviadas += 1
+                    
+                    messages.success(request, 
+                        f'🎉 Notificação enviada para {len(notifications_created)} participante(s)! '
+                        f'{enviadas} entregue(s) com sucesso.')
+                else:
+                    messages.success(request, 
+                        f'📝 Notificação criada para {len(notifications_created)} participante(s)! '
+                        f'Use o admin de Notificações para enviá-las.')
+                
+                return redirect('/admin/bolao/notification/')
+        else:
+            # Form inicial
+            initial_data = {}
+            if participantes_ids:
+                # Se vem da action, usar modo selecionados
+                initial_data['destinatarios'] = 'selecionados'
+                initial_data['participantes_selecionados'] = Participante.objects.filter(id__in=participantes_ids)
+            
+            form = NotificationForm(initial=initial_data)
+        
+        # Contexto para template
+        context = {
+            'form': form,
+            'title': 'Enviar Notificação Personalizada',
+            'participantes_count': len(participantes_ids) if participantes_ids else 0,
+            'opts': self.model._meta,
+            'has_change_permission': True,
+        }
+        
+        return render(request, 'admin/bolao/enviar_notificacao.html', context)
 
 
 class JogoInline(admin.TabularInline):
@@ -876,3 +1068,189 @@ class PaginaPopularAdmin(admin.ModelAdmin):
     
     def has_add_permission(self, request):
         return False
+
+
+@admin.register(NotificationSettings)
+class NotificationSettingsAdmin(admin.ModelAdmin):
+    """Admin para Configurações de Notificações"""
+    list_display = ['participante', 'enabled', 'nova_rodada', 'lembrete_prazo', 
+                   'resultados_publicados', 'ranking_atualizado', 'data_atualizacao']
+    list_filter = ['enabled', 'nova_rodada', 'lembrete_prazo', 'resultados_publicados', 'ranking_atualizado']
+    search_fields = ['participante__nome_exibicao', 'participante__user__username']
+    readonly_fields = ['data_criacao', 'data_atualizacao']
+    ordering = ['-data_atualizacao']
+    
+    fieldsets = (
+        ('Participante', {
+            'fields': ('participante',)
+        }),
+        ('Configurações Gerais', {
+            'fields': ('enabled',)
+        }),
+        ('Tipos de Notificação', {
+            'fields': ('nova_rodada', 'lembrete_prazo', 'resultados_publicados', 'ranking_atualizado')
+        }),
+        ('Dados Técnicos', {
+            'fields': ('push_subscription', 'data_criacao', 'data_atualizacao'),
+            'classes': ('collapse',)
+        })
+    )
+    
+    def get_readonly_fields(self, request, obj=None):
+        if obj:  # Editando
+            return self.readonly_fields + ['participante']
+        return self.readonly_fields
+
+
+@admin.register(Notification)
+class NotificationAdmin(admin.ModelAdmin):
+    """Admin para Notificações"""
+    list_display = ['participante', 'tipo', 'titulo_resumido', 'status', 'criada_em', 'enviada_em']
+    list_filter = ['tipo', 'status', 'criada_em']
+    search_fields = ['participante__nome_exibicao', 'titulo', 'mensagem']
+    readonly_fields = ['criada_em', 'enviada_em', 'clicada_em', 'push_id']
+    ordering = ['-criada_em']
+    
+    fieldsets = (
+        ('Destinatário', {
+            'fields': ('participante',)
+        }),
+        ('Conteúdo', {
+            'fields': ('tipo', 'titulo', 'mensagem', 'url_acao')
+        }),
+        ('Status', {
+            'fields': ('status', 'error_message')
+        }),
+        ('Relacionamentos', {
+            'fields': ('rodada_relacionada',)
+        }),
+        ('Timestamps', {
+            'fields': ('criada_em', 'enviada_em', 'clicada_em'),
+            'classes': ('collapse',)
+        }),
+        ('Dados Técnicos', {
+            'fields': ('push_id',),
+            'classes': ('collapse',)
+        })
+    )
+    
+    actions = ['reenviar_notificacao', 'marcar_como_enviada', 'criar_notificacao_massa']
+    
+    def titulo_resumido(self, obj):
+        if len(obj.titulo) > 30:
+            return f"{obj.titulo[:30]}..."
+        return obj.titulo
+    titulo_resumido.short_description = 'Título'
+    
+    def reenviar_notificacao(self, request, queryset):
+        """Action para reenviar notificações"""
+        from .views import send_push_notification
+        
+        count = 0
+        for notification in queryset:
+            if send_push_notification(notification):
+                count += 1
+        
+        self.message_user(request, f'{count} notificação(ões) reenviada(s) com sucesso!')
+    reenviar_notificacao.short_description = 'Reenviar notificações selecionadas'
+    
+    def marcar_como_enviada(self, request, queryset):
+        """Action para marcar notificações como enviadas"""
+        updated = queryset.update(status='sent', enviada_em=timezone.now())
+        self.message_user(request, f'{updated} notificação(ões) marcada(s) como enviada(s)!')
+    marcar_como_enviada.short_description = 'Marcar como enviadas'
+    
+    def get_readonly_fields(self, request, obj=None):
+        if obj:  # Editando
+            return self.readonly_fields + ['participante', 'tipo']
+        return self.readonly_fields
+    
+    def criar_notificacao_massa(self, request, queryset):
+        """Action para ir para página de criação em massa"""
+        return HttpResponseRedirect('/admin/bolao/notification/envio-massa/')
+    criar_notificacao_massa.short_description = '🚀 Criar notificação em massa'
+    
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path('envio-massa/', self.admin_site.admin_view(self.envio_massa_view), 
+                 name='bolao_notification_envio_massa'),
+        ]
+        return custom_urls + urls
+    
+    def envio_massa_view(self, request):
+        """Página para envio de notificações em massa"""
+        if request.method == 'POST':
+            form = NotificationForm(request.POST)
+            
+            if form.is_valid():
+                # Processar envio
+                tipo = form.cleaned_data['tipo']
+                titulo = form.cleaned_data['titulo']
+                mensagem = form.cleaned_data['mensagem']
+                url_acao = form.cleaned_data.get('url_acao', '')
+                destinatarios = form.cleaned_data['destinatarios']
+                participantes_selecionados = form.cleaned_data.get('participantes_selecionados', [])
+                rodada_relacionada = form.cleaned_data.get('rodada_relacionada')
+                enviar_imediatamente = form.cleaned_data['enviar_imediatamente']
+                
+                # Determinar participantes
+                if destinatarios == 'todos':
+                    participantes = Participante.objects.all()
+                elif destinatarios == 'ativos':
+                    participantes = Participante.objects.filter(ativo=True)
+                elif destinatarios == 'com_notifs':
+                    # Participantes com notificações ativadas
+                    participantes_com_settings = NotificationSettings.objects.filter(enabled=True).values_list('participante', flat=True)
+                    participantes = Participante.objects.filter(
+                        id__in=participantes_com_settings,
+                        ativo=True
+                    )
+                elif destinatarios == 'selecionados':
+                    participantes = participantes_selecionados
+                
+                # Criar notificações
+                notifications_created = []
+                
+                for participante in participantes:
+                    notification = Notification.objects.create(
+                        participante=participante,
+                        tipo=tipo,
+                        titulo=titulo,
+                        mensagem=mensagem,
+                        rodada_relacionada=rodada_relacionada,
+                        url_acao=url_acao
+                    )
+                    notifications_created.append(notification)
+                
+                # Enviar se solicitado
+                if enviar_imediatamente:
+                    from .views import send_push_notification
+                    
+                    enviadas = 0
+                    for notification in notifications_created:
+                        if send_push_notification(notification):
+                            enviadas += 1
+                    
+                    messages.success(request, 
+                        f'🎉 Notificação criada e enviada para {len(notifications_created)} participante(s)! '
+                        f'{enviadas} entregue(s) com sucesso.')
+                else:
+                    messages.success(request, 
+                        f'📝 Notificação criada para {len(notifications_created)} participante(s)! '
+                        f'Use as actions acima para enviá-las.')
+                
+                return redirect('/admin/bolao/notification/')
+        else:
+            form = NotificationForm()
+        
+        context = {
+            'form': form,
+            'title': '🚀 Envio de Notificações em Massa',
+            'subtitle': 'Envie notificações personalizadas para todos os participantes',
+            'participantes_count': 0,
+            'opts': self.model._meta,
+            'has_change_permission': True,
+        }
+        
+        return render(request, 'admin/bolao/enviar_notificacao.html', context)

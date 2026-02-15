@@ -1,0 +1,221 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static admin_list %}
+
+{% block title %}{{ title }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+    .notification-preview {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 15px;
+        margin: 15px 0;
+    }
+    
+    .notification-preview .icon {
+        font-size: 24px;
+        margin-right: 10px;
+    }
+    
+    .form-help {
+        background: #e7f3ff;
+        border-left: 4px solid #2196f3;
+        padding: 10px;
+        margin: 10px 0;
+        border-radius: 0 4px 4px 0;
+    }
+    
+    .destinatarios-info {
+        background: #fff3cd;
+        border: 1px solid #ffeaa7;
+        padding: 10px;
+        border-radius: 4px;
+        margin: 10px 0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="content-main">
+    <form method="post" novalidate>
+        {% csrf_token %}
+        
+        <div>
+            <h1>{{ title }}</h1>
+            
+            {% if subtitle %}
+            <p class="help" style="font-size: 16px; margin-bottom: 20px; color: #666;">
+                {{ subtitle }}
+            </p>
+            {% endif %}
+            
+            {% if participantes_count > 0 %}
+            <div class="destinatarios-info">
+                <strong>📋 Participantes selecionados:</strong> {{ participantes_count }}
+                <br><small>Os participantes selecionados na lista anterior serão os destinatários padrão.</small>
+            </div>
+            {% endif %}
+            
+            <div class="form-help">
+                <h4>💡 Como usar:</h4>
+                <ul>
+                    <li><strong>Título:</strong> Máximo 100 caracteres, seja claro e direto</li>
+                    <li><strong>Mensagem:</strong> Use emojis para tornar mais atrativa 🎯</li>
+                    <li><strong>URL de Ação:</strong> Para onde o usuário vai ao clicar (opcional)</li>
+                    <li><strong>Destinatários:</strong> Escolha o público-alvo</li>
+                </ul>
+            </div>
+
+            <fieldset class="module aligned">
+                <h2>📝 Conteúdo da Notificação</h2>
+                
+                <div class="form-row">
+                    <div>
+                        <label for="{{ form.tipo.id_for_label }}" class="required">Tipo:</label>
+                        {{ form.tipo }}
+                        {{ form.tipo.help_text }}
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div>
+                        <label for="{{ form.titulo.id_for_label }}" class="required">Título:</label>
+                        {{ form.titulo }}
+                        {% if form.titulo.help_text %}<p class="help">{{ form.titulo.help_text }}</p>{% endif %}
+                        {% if form.titulo.errors %}
+                            <ul class="errorlist">{% for error in form.titulo.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div>
+                        <label for="{{ form.mensagem.id_for_label }}" class="required">Mensagem:</label>
+                        {{ form.mensagem }}
+                        {% if form.mensagem.help_text %}<p class="help">{{ form.mensagem.help_text }}</p>{% endif %}
+                        {% if form.mensagem.errors %}
+                            <ul class="errorlist">{% for error in form.mensagem.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div>
+                        <label for="{{ form.url_acao.id_for_label }}">URL de Ação:</label>
+                        {{ form.url_acao }}
+                        {% if form.url_acao.help_text %}<p class="help">{{ form.url_acao.help_text }}</p>{% endif %}
+                    </div>
+                </div>
+            </fieldset>
+
+            <fieldset class="module aligned">
+                <h2>🎯 Destinatários</h2>
+                
+                <div class="form-row">
+                    <div>
+                        <label for="{{ form.destinatarios.id_for_label }}" class="required">Para quem enviar:</label>
+                        {{ form.destinatarios }}
+                        {% if form.destinatarios.help_text %}<p class="help">{{ form.destinatarios.help_text }}</p>{% endif %}
+                    </div>
+                </div>
+
+                <div class="form-row" id="participantes_especificos" style="display: none;">
+                    <div>
+                        <label for="{{ form.participantes_selecionados.id_for_label }}">Participantes:</label>
+                        {{ form.participantes_selecionados }}
+                        {% if form.participantes_selecionados.help_text %}<p class="help">{{ form.participantes_selecionados.help_text }}</p>{% endif %}
+                    </div>
+                </div>
+            </fieldset>
+
+            <fieldset class="module aligned">
+                <h2>⚙️ Opções Avançadas</h2>
+                
+                <div class="form-row">
+                    <div>
+                        <label for="{{ form.rodada_relacionada.id_for_label }}">Rodada:</label>
+                        {{ form.rodada_relacionada }}
+                        {% if form.rodada_relacionada.help_text %}<p class="help">{{ form.rodada_relacionada.help_text }}</p>{% endif %}
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div>
+                        {{ form.enviar_imediatamente }}
+                        <label for="{{ form.enviar_imediatamente.id_for_label }}">{{ form.enviar_imediatamente.label }}</label>
+                        {% if form.enviar_imediatamente.help_text %}<p class="help">{{ form.enviar_imediatamente.help_text }}</p>{% endif %}
+                    </div>
+                </div>
+            </fieldset>
+
+            <!-- Preview da Notificação -->
+            <fieldset class="module">
+                <h2>👁️ Preview da Notificação</h2>
+                <div class="notification-preview">
+                    <div style="display: flex; align-items: center;">
+                        <div class="icon">🔔</div>
+                        <div style="flex-grow: 1;">
+                            <div style="font-weight: bold; margin-bottom: 5px;" id="preview-title">
+                                Digite o título acima...
+                            </div>
+                            <div style="color: #666;" id="preview-message">
+                                Digite a mensagem acima...
+                            </div>
+                            <div style="font-size: 12px; color: #999; margin-top: 5px;">
+                                FutAmigo • agora
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </fieldset>
+
+            <div class="submit-row">
+                <input type="submit" value="🚀 Enviar Notificação" class="default" />
+                <a href="/admin/bolao/participante/" class="btn btn-cancel">Cancelar</a>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Preview em tempo real
+    const tituloInput = document.getElementById('{{ form.titulo.id_for_label }}');
+    const mensagemInput = document.getElementById('{{ form.mensagem.id_for_label }}');
+    const previewTitle = document.getElementById('preview-title');
+    const previewMessage = document.getElementById('preview-message');
+    
+    function updatePreview() {
+        const titulo = tituloInput.value || 'Digite o título acima...';
+        const mensagem = mensagemInput.value || 'Digite a mensagem acima...';
+        
+        previewTitle.textContent = titulo;
+        previewMessage.textContent = mensagem;
+    }
+    
+    tituloInput.addEventListener('input', updatePreview);
+    mensagemInput.addEventListener('input', updatePreview);
+    
+    // Mostrar/esconder participantes específicos
+    const destinatariosSelect = document.getElementById('{{ form.destinatarios.id_for_label }}');
+    const participantesDiv = document.getElementById('participantes_especificos');
+    
+    function toggleParticipantes() {
+        if (destinatariosSelect.value === 'selecionados') {
+            participantesDiv.style.display = 'block';
+        } else {
+            participantesDiv.style.display = 'none';
+        }
+    }
+    
+    destinatariosSelect.addEventListener('change', toggleParticipantes);
+    toggleParticipantes(); // Executar na inicialização
+    
+    // Atualizar preview inicial
+    updatePreview();
+});
+</script>
+
+{% endblock %}
