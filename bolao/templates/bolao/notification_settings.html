@@ -49,6 +49,18 @@
                                 <i class="fas fa-paper-plane me-1"></i>
                                 Testar Notificação
                             </button>
+                            <button id="debugInfo" class="btn btn-outline-info" type="button" data-bs-toggle="collapse" data-bs-target="#debugPanel">
+                                <i class="fas fa-bug me-1"></i>
+                                Debug
+                            </button>
+                        </div>
+                        
+                        <!-- Painel de Debug -->
+                        <div class="collapse mt-3" id="debugPanel">
+                            <div class="card card-body bg-light">
+                                <h6><i class="fas fa-microscope me-2"></i>Informações Técnicas</h6>
+                                <small id="debugContent" class="text-muted">Carregando informações...</small>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -202,24 +214,91 @@ const notificationTypes = document.getElementById('notificationTypes');
 document.addEventListener('DOMContentLoaded', function() {
     checkNotificationSupport();
     setupEventListeners();
+    updateDebugInfo();
 });
+
+// Atualizar informações de debug
+function updateDebugInfo() {
+    const debugContent = document.getElementById('debugContent');
+    
+    if (!debugContent) return;
+    
+    const info = {
+        'User Agent': navigator.userAgent,
+        'Mobile': /Mobi|Android/i.test(navigator.userAgent) ? 'Sim' : 'Não',
+        'HTTPS': window.location.protocol === 'https:' ? 'Sim' : 'Não',
+        'Contexto Seguro': window.isSecureContext ? 'Sim' : 'Não',
+        'Notification API': 'Notification' in window ? 'Suportada' : 'Não suportada',
+        'Service Worker': 'serviceWorker' in navigator ? 'Suportado' : 'Não suportado',
+        'Push Manager': 'PushManager' in window ? 'Suportado' : 'Não suportado',
+        'Permissão Atual': Notification.permission || 'undefined',
+        'URL Atual': window.location.href,
+        'Tela': `${screen.width}x${screen.height}`,
+        'Viewport': `${window.innerWidth}x${window.innerHeight}`
+    };
+    
+    let html = '<div class="row">';
+    
+    Object.entries(info).forEach(([key, value]) => {
+        const isError = (key.includes('HTTPS') && value === 'Não') || 
+                       (key.includes('Contexto') && value === 'Não') ||
+                       (key.includes('API') && value.includes('Não')) ||
+                       (key.includes('Permissão') && value === 'denied');
+        
+        const textClass = isError ? 'text-danger' : 'text-success';
+        
+        html += `
+            <div class="col-md-6 mb-1">
+                <strong>${key}:</strong> 
+                <span class="${textClass}">${value}</span>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    
+    debugContent.innerHTML = html;
+}
 
 // Verificar suporte a notificações
 function checkNotificationSupport() {
+    // Log para debug no mobile
+    console.log('🔧 Verificando suporte a notificações...');
+    console.log('🔧 User Agent:', navigator.userAgent);
+    console.log('🔧 HTTPS:', window.location.protocol === 'https:');
+    
     if (!('Notification' in window)) {
+        console.log('❌ Notification API não suportada');
         notificationStatus.textContent = 'Não Suportado';
         notificationStatus.className = 'badge bg-danger';
         return;
     }
     
+    console.log('✅ Notification API suportada');
     notificationPermission = Notification.permission;
+    console.log('🔧 Permissão atual:', notificationPermission);
+    
     updateNotificationStatus();
     
-    // Verificar service worker
+    // Verificar service worker com debug melhor
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.ready.then(registration => {
-            serviceWorkerRegistration = registration;
-        });
+        console.log('🔧 Service Worker API disponível');
+        navigator.serviceWorker.ready
+            .then(registration => {
+                console.log('✅ Service Worker registrado:', registration);
+                serviceWorkerRegistration = registration;
+            })
+            .catch(error => {
+                console.error('❌ Erro no Service Worker:', error);
+            });
+    } else {
+        console.log('❌ Service Worker não suportado');
+    }
+    
+    // Verificar se estamos em contexto seguro
+    if (!window.isSecureContext) {
+        console.warn('⚠️ Contexto não seguro - notificações podem não funcionar');
+        showToast('⚠️ Para notificações funcionarem corretamente, acesse via HTTPS', 'warning');
     }
 }
 
@@ -270,23 +349,89 @@ function setupEventListeners() {
 // Solicitar permissão
 async function requestNotificationPermission() {
     try {
+        console.log('📱 Solicitando permissão para notificações...');
+        
         enableButton.disabled = true;
         enableButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Solicitando...';
         
-        const permission = await Notification.requestPermission();
+        // Verificar se já temos permissão
+        if (Notification.permission === 'granted') {
+            console.log('✅ Permissão já concedida');
+            notificationPermission = 'granted';
+            updateNotificationStatus();
+            await savePushSubscription();
+            showToast('Notificações já estão ativadas! 🎉', 'success');
+            return;
+        }
+        
+        // Verificar se foi bloqueado permanentemente
+        if (Notification.permission === 'denied') {
+            console.log('❌ Permissão negada permanentemente');
+            showToast('Notificações foram bloqueadas. Vá em Configurações do navegador > Site > Notificações para ativar.', 'warning');
+            return;
+        }
+        
+        // Solicitar permissão - com fallback para mobile
+        let permission;
+        
+        try {
+            // Método moderno (Promise)
+            permission = await Notification.requestPermission();
+        } catch (error) {
+            console.log('🔧 Usando método callback para compatibilidade...');
+            // Fallback para método callback (alguns browsers mobile)
+            permission = await new Promise((resolve) => {
+                Notification.requestPermission(resolve);
+            });
+        }
+        
+        console.log('📱 Resultado da permissão:', permission);
         notificationPermission = permission;
         updateNotificationStatus();
         
         if (permission === 'granted') {
+            console.log('✅ Permissão concedida!');
             // Salvar subscription para push notifications
             await savePushSubscription();
+            
+            // Mostrar notificação de teste imediata
+            try {
+                new Notification('🎉 FutAmigo', {
+                    body: 'Notificações ativadas com sucesso!',
+                    icon: '/static/icons/icon-192x192.png',
+                    tag: 'permission-granted',
+                    silent: false,
+                    requireInteraction: false
+                });
+            } catch (notifError) {
+                console.log('Notificação local falhou:', notifError);
+            }
+            
             showToast('Notificações ativadas com sucesso! 🎉', 'success');
+        } else if (permission === 'denied') {
+            console.log('❌ Permissão negada pelo usuário');
+            showToast('Permissão negada. Para ativar depois: Configurações do navegador > Notificações.', 'warning');
         } else {
-            showToast('Permissão negada. Você pode ativar depois nas configurações do navegador.', 'warning');
+            console.log('⏸️ Permissão não definida');
+            showToast('Permissão não foi definida. Tente novamente.', 'info');
         }
+        
     } catch (error) {
-        console.error('Erro ao solicitar permissão:', error);
-        showToast('Erro ao solicitar permissão para notificações', 'danger');
+        console.error('💥 Erro ao solicitar permissão:', error);
+        console.error('💥 Stack trace:', error.stack);
+        
+        // Mensagens específicas de erro para mobile
+        let errorMessage = 'Erro ao solicitar permissão para notificações';
+        
+        if (error.name === 'NotAllowedError') {
+            errorMessage = 'Permissão bloqueada pelo navegador. Verifique as configurações.';
+        } else if (error.name === 'AbortError') {
+            errorMessage = 'Solicitação cancelada. Tente novamente.';
+        } else if (!window.isSecureContext) {
+            errorMessage = 'Notificações requerem HTTPS. Acesse via conexão segura.';
+        }
+        
+        showToast(`❌ ${errorMessage}`, 'danger');
     } finally {
         enableButton.disabled = false;
         enableButton.innerHTML = '<i class="fas fa-bell me-1"></i>Ativar Agora';
@@ -295,63 +440,189 @@ async function requestNotificationPermission() {
 
 // Salvar push subscription
 async function savePushSubscription() {
-    if (!serviceWorkerRegistration) return;
+    console.log('💾 Tentando salvar push subscription...');
+    
+    if (!serviceWorkerRegistration) {
+        console.log('⚠️ Service Worker não disponível para push subscription');
+        return;
+    }
     
     try {
-        const subscription = await serviceWorkerRegistration.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: null // Aqui iria a chave VAPID futuramente
-        });
+        // Verificar se push manager está disponível
+        if (!serviceWorkerRegistration.pushManager) {
+            console.log('⚠️ Push Manager não disponível');
+            return;
+        }
         
+        // Verificar se já existe uma subscription
+        let subscription = await serviceWorkerRegistration.pushManager.getSubscription();
+        
+        if (!subscription) {
+            console.log('📝 Criando nova push subscription...');
+            
+            // Criar nova subscription
+            subscription = await serviceWorkerRegistration.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: null // Aqui iria a chave VAPID no futuro
+            });
+        }
+        
+        console.log('📝 Push subscription obtida:', subscription);
+        
+        // Salvar no servidor
         const response = await fetch('{% url "save_push_subscription" %}', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
             },
-            body: JSON.stringify(subscription)
+            body: JSON.stringify({
+                endpoint: subscription.endpoint,
+                keys: subscription.toJSON().keys,
+                mobile_info: {
+                    user_agent: navigator.userAgent,
+                    is_mobile: /Mobi|Android/i.test(navigator.userAgent),
+                    screen_width: screen.width,
+                    screen_height: screen.height
+                }
+            })
         });
         
         const result = await response.json();
+        
         if (result.success) {
-            console.log('Push subscription salva com sucesso');
+            console.log('✅ Push subscription salva com sucesso');
+        } else {
+            console.error('❌ Erro ao salvar push subscription:', result.error);
         }
+        
     } catch (error) {
-        console.error('Erro ao salvar push subscription:', error);
+        console.error('💥 Erro ao processar push subscription:', error);
+        
+        // Log detalhado para debug no mobile
+        console.error('💥 Erro detalhado:', {
+            name: error.name,
+            message: error.message,
+            stack: error.stack,
+            serviceWorker: !!serviceWorkerRegistration,
+            pushManager: !!serviceWorkerRegistration?.pushManager
+        });
+        
+        // Não mostrar erro para o usuário pois push subscription é opcional
+        // showToast('Erro ao configurar notificações push', 'warning');
     }
 }
 
 // Testar notificação
 async function testNotification() {
     try {
+        console.log('🧪 Iniciando teste de notificação...');
+        console.log('🧪 Permissão atual:', Notification.permission);
+        console.log('🧪 URL atual:', window.location.href);
+        
         testButton.disabled = true;
         testButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Enviando...';
+        
+        // Verificações preliminares
+        if (Notification.permission !== 'granted') {
+            throw new Error('Permissão de notificação não concedida');
+        }
+        
+        if (!window.isSecureContext) {
+            throw new Error('Contexto não seguro - HTTPS necessário');
+        }
+        
+        // Teste de notificação local primeiro (mais confiável no mobile)
+        console.log('🧪 Testando notificação local...');
+        
+        try {
+            const localNotification = new Notification('🧪 Teste do FutAmigo', {
+                body: 'Esta é uma notificação de teste local. Se você vê isso, está funcionando!',
+                icon: '/static/icons/icon-192x192.png',
+                badge: '/static/icons/icon-72x72.png',
+                tag: 'test-local',
+                vibrate: [200, 100, 200],
+                silent: false,
+                requireInteraction: false,
+                timestamp: Date.now(),
+                data: {
+                    url: window.location.origin,
+                    test: true
+                }
+            });
+            
+            localNotification.onclick = function() {
+                console.log('🧪 Notificação local clicada');
+                this.close();
+            };
+            
+            localNotification.onshow = function() {
+                console.log('✅ Notificação local exibida com sucesso');
+            };
+            
+            localNotification.onerror = function(error) {
+                console.error('❌ Erro na notificação local:', error);
+            };
+            
+            // Fechar automaticamente após 5 segundos
+            setTimeout(() => {
+                if (localNotification) {
+                    localNotification.close();
+                }
+            }, 5000);
+            
+        } catch (localError) {
+            console.error('❌ Erro na notificação local:', localError);
+        }
+        
+        // Agora tenta o teste via servidor
+        console.log('🧪 Enviando teste para servidor...');
         
         const response = await fetch('{% url "test_notification" %}', {
             method: 'POST',
             headers: {
-                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-            }
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                mobile_test: /Mobi|Android/i.test(navigator.userAgent),
+                user_agent: navigator.userAgent,
+                timestamp: Date.now()
+            })
         });
         
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
         const result = await response.json();
+        console.log('🧪 Resposta do servidor:', result);
         
         if (result.success) {
-            // Mostrar notificação local também
-            if (notificationPermission === 'granted') {
-                new Notification('🎉 Teste de Notificação', {
-                    body: 'Se você está vendo isso, as notificações estão funcionando perfeitamente!',
-                    icon: '/static/icons/icon-192x192.png',
-                    tag: 'test-notification'
-                });
-            }
-            showToast('Notificação de teste enviada! 📱', 'success');
+            showToast('✅ Teste de notificação realizado com sucesso! Verifique se recebeu a notificação.', 'success');
         } else {
-            showToast('Erro ao enviar notificação: ' + result.error, 'danger');
+            throw new Error(result.error || 'Falha no teste do servidor');
         }
+        
     } catch (error) {
-        console.error('Erro ao testar notificação:', error);
-        showToast('Erro ao enviar notificação de teste', 'danger');
+        console.error('💥 Erro no teste de notificação:', error);
+        console.error('💥 Stack:', error.stack);
+        
+        let errorMessage = `Erro no teste: ${error.message}`;
+        
+        // Mensagens específicas para problemas comuns no mobile
+        if (error.message.includes('not supported')) {
+            errorMessage = 'Notificações não suportadas neste dispositivo/navegador';
+        } else if (error.message.includes('permission')) {
+            errorMessage = 'Permissão necessária. Clique em "Ativar Agora" primeiro.';
+        } else if (error.message.includes('HTTPS')) {
+            errorMessage = 'Acesse o site via HTTPS para notificações funcionarem';
+        } else if (error.message.includes('HTTP 403')) {
+            errorMessage = 'Erro de permissão no servidor. Faça login novamente.';
+        }
+        
+        showToast(`❌ ${errorMessage}`, 'danger');
+        
     } finally {
         testButton.disabled = false;
         testButton.innerHTML = '<i class="fas fa-paper-plane me-1"></i>Testar Notificação';

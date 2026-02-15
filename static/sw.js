@@ -86,7 +86,7 @@ self.addEventListener('sync', function(event) {
 
 // Evento para lidar com notificações push (preparado para futuro)
 self.addEventListener('push', function(event) {
-    console.log('Push notification received:', event);
+    console.log('📱 Push notification received:', event);
     
     let notificationData = {
         title: 'FutAmigo',
@@ -105,7 +105,11 @@ self.addEventListener('push', function(event) {
                 title: 'Ver Agora',
                 icon: '/static/icons/icon-72x72.png'
             }
-        ]
+        ],
+        // Configurações específicas para mobile
+        requireInteraction: false,
+        silent: false,
+        renotify: true
     };
     
     // Se há dados no push, usar eles
@@ -116,23 +120,50 @@ self.addEventListener('push', function(event) {
                 ...notificationData,
                 ...pushData
             };
+            console.log('📱 Dados do push:', pushData);
         } catch (e) {
+            console.log('📱 Push data como texto:', event.data.text());
             notificationData.body = event.data.text();
         }
     }
     
+    // Mostrar notificação
     event.waitUntil(
         self.registration.showNotification(notificationData.title, notificationData)
+            .then(() => {
+                console.log('✅ Notificação exibida com sucesso');
+            })
+            .catch(error => {
+                console.error('❌ Erro ao exibir notificação:', error);
+            })
     );
 });
 
 // Evento para lidar com cliques em notificações
 self.addEventListener('notificationclick', function(event) {
-    console.log('Notificação clicada:', event);
+    console.log('📱 Notificação clicada:', event);
     event.notification.close();
 
-    // Abrir a aplicação
+    const urlToOpen = event.notification.data?.url || '/';
+    
+    // Abrir ou focar na aplicação
     event.waitUntil(
-        clients.openWindow('/')
+        clients.matchAll({type: 'window', includeUncontrolled: true})
+            .then(function(clientList) {
+                // Se já tem uma janela aberta, focar nela
+                for (let client of clientList) {
+                    if (client.url === urlToOpen && 'focus' in client) {
+                        return client.focus();
+                    }
+                }
+                
+                // Senão, abrir nova janela
+                if (clients.openWindow) {
+                    return clients.openWindow(urlToOpen);
+                }
+            })
+            .catch(error => {
+                console.error('❌ Erro ao processar clique na notificação:', error);
+            })
     );
 });

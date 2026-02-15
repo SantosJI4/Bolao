@@ -81,6 +81,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
+    "bolao.middleware_debug.PerformanceMiddleware",  # Debug de performance
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "bolao_brasileirao.middleware.CSRFDebugMiddleware",  # Debug CSRF
@@ -88,8 +89,11 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
+    "bolao.middleware_debug.DatabaseOptimizationMiddleware",  # Otimização DB
+    "bolao.middleware_debug.CacheOptimizationMiddleware",  # Otimização Cache
     "bolao_brasileirao.middleware.AnalyticsMiddleware",  # Analytics
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "bolao.middleware_debug.ErrorHandlingMiddleware",  # Tratamento de erros
 ]
 
 ROOT_URLCONF = "bolao_brasileirao.urls"
@@ -180,6 +184,114 @@ X_FRAME_OPTIONS = 'SAMEORIGIN'  # Changed from DENY to SAMEORIGIN
 
 # Default field for auto fields
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+# ===============================================
+# OTIMIZAÇÕES DE PERFORMANCE
+# ===============================================
+
+# Cache Configuration (otimizado para performance)
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'futamigo-cache',
+        'TIMEOUT': 300,  # 5 minutos default
+        'OPTIONS': {
+            'MAX_ENTRIES': 1000,
+            'CULL_FREQUENCY': 3,
+        }
+    }
+}
+
+# Cache para sessões (melhora login/logout)
+SESSION_ENGINE = 'django.contrib.sessions.backends.cached_db'
+SESSION_CACHE_ALIAS = 'default'
+SESSION_COOKIE_AGE = 86400  # 24 horas
+
+# Database optimizations
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
+        'OPTIONS': {
+            'timeout': 20,  # Timeout de conexão
+            'isolation_level': None,  # Autocommit mode
+        },
+        'CONN_MAX_AGE': 600,  # Reutilizar conexões por 10 minutos
+    }
+}
+
+# Logging otimizado para debug de performance
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'detailed': {
+            'format': '[{asctime}] {levelname} {name}: {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'detailed' if DEBUG else 'simple',
+        },
+        'file': {
+            'class': 'logging.FileHandler',
+            'filename': BASE_DIR / 'debug.log',
+            'formatter': 'detailed',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
+    'loggers': {
+        'django.db.backends': {
+            'handlers': ['console'] if DEBUG else [],
+            'level': 'WARNING',  # Só log queries problemáticas
+            'propagate': False,
+        },
+        'bolao': {
+            'handlers': ['console', 'file'] if DEBUG else ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}
+
+# Otimizações de template
+if not DEBUG:
+    # Em produção, cache templates
+    TEMPLATES[0]['OPTIONS']['loaders'] = [
+        ('django.template.loaders.cached.Loader', [
+            'django.template.loaders.filesystem.Loader',
+            'django.template.loaders.app_directories.Loader',
+        ]),
+    ]
+
+# Otimizações de arquivos estáticos
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+# Compress static files
+WHITENOISE_SKIP_COMPRESS_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'zip', 'gz', 'tgz', 'bz2', 'tbz', 'xz', 'br']
+
+# Performance settings
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB
+
+# Otimização de email (se usar)
+EMAIL_TIMEOUT = 10
+
+# Reduzir timeouts para não travar requests
+DEFAULT_TIMEOUT = 30
+
+# Performance monitoring
+ENABLE_PERFORMANCE_MONITORING = DEBUG
 
 # Square Cloud / Production settings
 import os

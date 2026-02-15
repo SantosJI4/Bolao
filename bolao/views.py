@@ -14,95 +14,148 @@ from .forms import PerfilParticipanteForm
 
 
 def home(request):
-    """Página inicial mostrando rodadas e status"""
-    # Busca rodadas ativas, ordenadas por número
-    rodadas_ativas = Rodada.objects.filter(ativa=True).order_by('numero')
+    """Página inicial mostrando rodadas e status - OTIMIZADA"""
+    import time
+    start_time = time.time()
     
-    # Rodada atual: a primeira ativa que está no período correto ou a mais próxima
+    from django.core.cache import cache
+    
+    # Cache key único para cada usuário
+    cache_key = f'home_data_{request.user.id if request.user.is_authenticated else "anonymous"}'
+    cached_data = cache.get(cache_key)
+    
+    if cached_data:
+        # Se temos dados em cache (válidos por 2 minutos), usa eles
+        context = cached_data
+        context['cache_hit'] = True
+        context['load_time'] = round((time.time() - start_time) * 1000, 2)
+        return render(request, 'bolao/home.html', context)
+    
+    # Busca rodadas ativas com consulta otimizada
+    rodadas_ativas = Rodada.objects.filter(ativa=True).select_related().order_by('numero')
+    
+    # Rodada atual: otimizada com uma única consulta
     agora = timezone.now()
     rodada_atual = None
     
-    # Primeiro tenta pegar uma rodada ativa que está no período correto (entre data_inicio e data_fim)
-    for rodada in rodadas_ativas:
+    # Busca mais eficiente usando anotações
+    rodadas_list = list(rodadas_ativas)
+    
+    # Primeiro tenta pegar uma rodada ativa no período correto
+    for rodada in rodadas_list:
         if rodada.data_inicio <= agora <= rodada.data_fim:
             rodada_atual = rodada
             break
     
-    # Se não achou nenhuma no período, pega a próxima rodada ativa
+    # Se não achou, pega a próxima ou a última
     if not rodada_atual:
-        rodada_atual = rodadas_ativas.filter(data_inicio__gt=agora).first()
+        futuras = [r for r in rodadas_list if r.data_inicio > agora]
+        rodada_atual = futuras[0] if futuras else (rodadas_list[-1] if rodadas_list else None)
     
-    # Se ainda não achou, pega a última rodada ativa (caso todas já tenham passado)
-    if not rodada_atual:
-        rodada_atual = rodadas_ativas.last()
+    # Filtra rodadas usando listas já carregadas (mais eficiente)
+    rodadas_futuras = [r for r in rodadas_list if r.data_inicio > agora and r != rodada_atual][:3]
+    rodadas_passadas = sorted([r for r in rodadas_list if r.data_fim < agora], key=lambda x: x.numero, reverse=True)[:3]
     
-    # Rodadas futuras: ativas e que ainda não começaram
-    rodadas_futuras = rodadas_ativas.filter(data_inicio__gt=agora).exclude(id=rodada_atual.id if rodada_atual else None)[:3]
-    
-    # Rodadas passadas: ativas e que já terminaram
-    rodadas_passadas = rodadas_ativas.filter(data_fim__lt=agora).order_by('-numero')[:3]
-    
-    # Se o usuário estiver logado, pegar o participante
+    # Participante e atualizações otimizadas
     participante = None
     atualizacao_nao_vista = None
     
     if request.user.is_authenticated:
         try:
-            participante = request.user.participante
+            participante = getattr(request.user, 'participante', None)
             
-            # Verifica se há atualizações não vistas
-            from .models import AtualizacaoSite, AtualizacaoVista
-            atualizacoes_ativas = AtualizacaoSite.objects.filter(ativa=True)
-            atualizacoes_vistas = AtualizacaoVista.objects.filter(participante=participante).values_list('atualizacao_id', flat=True)
-            
-            # Pega a atualização mais recente não vista
-            atualizacao_nao_vista = atualizacoes_ativas.exclude(id__in=atualizacoes_vistas).first()
-            
-        except:
-            pass
+            if participante:
+                # Consulta otimizada de atualizações com uma única query
+                from .models import AtualizacaoSite, AtualizacaoVista
+                
+                # Cache das atualizações por 5 minutos
+                atualizacoes_cache_key = f'atualizacoes_{participante.id}'
+                atualizacao_nao_vista = cache.get(atualizacoes_cache_key)
+                
+                if atualizacao_nao_vista is None:
+                    atualizacoes_vistas_ids = list(AtualizacaoVista.objects.filter(participante=participante).values_list('atualizacao_id', flat=True))
+                    atualizacao_nao_vista = AtualizacaoSite.objects.filter(ativa=True).exclude(id__in=atualizacoes_vistas_ids).first()
+                    cache.set(atualizacoes_cache_key, atualizacao_nao_vista, 300)  # 5 minutos
+                
+        except Exception as e:
+            import logging
+            logging.warning(f'Erro ao buscar participante: {e}')
     
+    # Preparar dados para cache e resposta
     context = {
         'rodada_atual': rodada_atual,
         'rodadas_futuras': rodadas_futuras,
         'rodadas_passadas': rodadas_passadas,
         'participante': participante,
         'atualizacao_nao_vista': atualizacao_nao_vista,
+        'cache_hit': False,
+        'load_time': round((time.time() - start_time) * 1000, 2)
     }
+    
+    # Cache por 2 minutos (120 segundos)
+    cache.set(cache_key, context, 120)
     
     return render(request, 'bolao/home.html', context)
 
 
 @login_required
 def rodada_palpites(request, rodada_id):
-    """Página para fazer palpites ou visualizar palpites da rodada"""
-    rodada = get_object_or_404(Rodada, id=rodada_id)
+    """Página para fazer palpites ou visualizar palpites da rodada - OTIMIZADA"""
+    import time
+    from django.core.cache import cache
+    
+    start_time = time.time()
+    
+    rodada = get_object_or_404(Rodada.objects.select_related(), id=rodada_id)
     
     # Verifica se o usuário tem um participante associado
     try:
-        participante = request.user.participante
-    except Participante.DoesNotExist:
-        messages.error(request, "Você não está cadastrado como participante do bolão. Entre em contato com o administrador.")
+        participante = getattr(request.user, 'participante', None)
+        if not participante:
+            messages.error(request, "Você não está cadastrado como participante do bolão. Entre em contato com o administrador.")
+            return redirect('home')
+    except Exception:
+        messages.error(request, "Erro ao verificar participante. Entre em contato com o administrador.")
         return redirect('home')
     
     # Se não pode mais palpitar, muda para modo visualização
     pode_palpitar = rodada.pode_palpitar
     
-    jogos = rodada.jogo_set.all().order_by('data_hora')
+    # Consulta otimizada de jogos com times relacionados
+    jogos = rodada.jogo_set.select_related('time_casa', 'time_visitante').all().order_by('data_hora')
     
-    # Buscar palpites existentes do usuário
-    palpites_existentes = {}
-    for palpite in Palpite.objects.filter(participante=participante, jogo__rodada=rodada):
-        palpites_existentes[palpite.jogo.id] = palpite
+    # Cache para palpites existentes do usuário (1 minuto de cache)
+    palpites_cache_key = f'palpites_{participante.id}_{rodada_id}'
+    palpites_existentes = cache.get(palpites_cache_key)
     
-    # Se não pode palpitar, buscar todos os palpites para a planilha
+    if palpites_existentes is None:
+        palpites_existentes = {}
+        for palpite in Palpite.objects.select_related('jogo').filter(participante=participante, jogo__rodada=rodada):
+            palpites_existentes[palpite.jogo.id] = palpite
+        cache.set(palpites_cache_key, palpites_existentes, 60)  # 1 minuto
+    
+    # Se não pode palpitar, buscar todos os palpites para a planilha (com cache)
     todos_palpites = {}
     participantes_ativos = []
     if not pode_palpitar:
-        participantes_ativos = Participante.objects.filter(ativo=True).order_by('nome_exibicao')
-        for jogo in jogos:
-            todos_palpites[jogo.id] = {}
-            for palpite in Palpite.objects.filter(jogo=jogo):
-                todos_palpites[jogo.id][palpite.participante.id] = palpite
+        planilha_cache_key = f'planilha_palpites_{rodada_id}'
+        cached_planilha = cache.get(planilha_cache_key)
+        
+        if cached_planilha:
+            todos_palpites = cached_planilha['palpites']
+            participantes_ativos = cached_planilha['participantes']
+        else:
+            participantes_ativos = list(Participante.objects.filter(ativo=True).order_by('nome_exibicao'))
+            for jogo in jogos:
+                todos_palpites[jogo.id] = {}
+                for palpite in Palpite.objects.select_related('participante').filter(jogo=jogo):
+                    todos_palpites[jogo.id][palpite.participante.id] = palpite
+            
+            # Cache da planilha por 2 minutos
+            cache.set(planilha_cache_key, {
+                'palpites': todos_palpites,
+                'participantes': participantes_ativos
+            }, 120)
     
     if request.method == 'POST' and pode_palpitar:
         todos_palpites_validos = True
@@ -137,19 +190,26 @@ def rodada_palpites(request, rodada_id):
                     continue
         
         if palpites_salvos:
+            # Limpa caches relacionados
+            cache.delete(palpites_cache_key)
+            cache.delete(f'planilha_palpites_{rodada_id}')
+            
             messages.success(request, f"Palpites salvos com sucesso! {len(palpites_salvos)} jogos.")
             return redirect('home')
         else:
             messages.error(request, "Nenhum palpite foi salvo. Verifique os dados.")
     
+    load_time = round((time.time() - start_time) * 1000, 2)
+    
     context = {
         'rodada': rodada,
-        'jogos': jogos,
+        'jogos': list(jogos),
         'participante': participante,
         'palpites_existentes': palpites_existentes,
         'pode_palpitar': pode_palpitar,
         'todos_palpites': todos_palpites,
         'participantes_ativos': participantes_ativos,
+        'load_time': load_time
     }
     
     return render(request, 'bolao/palpites.html', context)
@@ -180,24 +240,47 @@ def resultados_rodada(request, rodada_id):
 
 
 def classificacao(request):
-    """Página da classificação geral"""
-    classificacoes = Classificacao.objects.all().order_by('posicao')
+    """Página da classificação geral - OTIMIZADA"""
+    import time
+    from django.core.cache import cache
     
-    # Estatísticas gerais
+    start_time = time.time()
+    
+    # Cache da classificação por 5 minutos (dados não mudam frequentemente)
+    cache_key = 'classificacao_geral'
+    cached_data = cache.get(cache_key)
+    
+    if cached_data:
+        cached_data['cache_hit'] = True
+        cached_data['load_time'] = round((time.time() - start_time) * 1000, 2)
+        return render(request, 'bolao/classificacao.html', cached_data)
+    
+    # Consultas otimizadas com select_related
+    classificacoes = Classificacao.objects.select_related('participante').all().order_by('posicao')
+    
+    # Estatísticas gerais com uma consulta por vez
     total_participantes = Participante.objects.filter(ativo=True).count()
     total_jogos_finalizados = Jogo.objects.filter(resultado_finalizado=True).count()
     
     context = {
-        'classificacoes': classificacoes,
+        'classificacoes': list(classificacoes),  # Força avaliação da queryset
         'total_participantes': total_participantes,
         'total_jogos_finalizados': total_jogos_finalizados,
+        'cache_hit': False,
+        'load_time': round((time.time() - start_time) * 1000, 2)
     }
+    
+    # Cache por 5 minutos
+    cache.set(cache_key, context, 300)
     
     return render(request, 'bolao/classificacao.html', context)
 
 
 def login_participante(request):
-    """Página de login para participantes"""
+    """Página de login para participantes - OTIMIZADA"""
+    import time
+    start_time = time.time()
+    
     if request.user.is_authenticated:
         return redirect('home')
     
@@ -207,17 +290,32 @@ def login_participante(request):
         
         user = authenticate(request, username=username, password=password)
         if user is not None:
-            # Verifica se o usuário tem um participante associado
+            # Verifica se o usuário tem um participante associado (consulta otimizada)
             try:
-                participante = user.participante
-                if participante.ativo:
+                participante = getattr(user, 'participante', None)
+                if participante and participante.ativo:
                     auth_login(request, user)
+                    
+                    # Limpa caches relacionados ao usuário
+                    from django.core.cache import cache
+                    cache.delete(f'home_data_{user.id}')
+                    cache.delete(f'atualizacoes_{participante.id}')
+                    
+                    # Log de performance
+                    login_time = round((time.time() - start_time) * 1000, 2)
+                    import logging
+                    logging.info(f'Login realizado em {login_time}ms para {participante.nome_exibicao}')
+                    
                     messages.success(request, f"Bem-vindo(a), {participante.nome_exibicao}!")
                     return redirect('home')
-                else:
+                elif participante:
                     messages.error(request, "Sua conta está inativa. Entre em contato com o administrador.")
-            except Participante.DoesNotExist:
-                messages.error(request, "Usuário não é um participante do bolão.")
+                else:
+                    messages.error(request, "Usuário não é um participante do bolão.")
+            except Exception as e:
+                import logging
+                logging.error(f'Erro no login: {e}')
+                messages.error(request, "Erro interno. Tente novamente.")
         else:
             messages.error(request, "Usuário ou senha incorretos.")
     
@@ -410,11 +508,11 @@ def atualizar_placares_api(request):
     import requests
     from datetime import datetime, timedelta
     
-    # Chaves de cache específicas
+    # Cache INTELIGENTE - Só usa cache se não há jogos ao vivo
     CACHE_KEY = 'brasileirao_placares'
     CACHE_BACKUP_KEY = 'brasileirao_placares_backup'
-    CACHE_TIMEOUT = 120  # 2 minutos para jogos ao vivo
-    CACHE_BACKUP_TIMEOUT = 1800  # 30 minutos backup
+    CACHE_TIMEOUT = 30  # Reduzido para 30 segundos
+    CACHE_BACKUP_TIMEOUT = 600  # 10 minutos backup
     
     # Tenta pegar do cache primeiro
     placares_cache = cache.get(CACHE_KEY)
@@ -440,12 +538,12 @@ def atualizar_placares_api(request):
         jogos_api = []
         fonte = 'sem_dados'
         
-        # 1. BUSCAR JOGOS AO VIVO - APENAS BRASILEIRÃO SÉRIE A
+        # 1. BUSCAR JOGOS AO VIVO - APENAS BRASILEIRÃO SÉRIE A (timeout reduzido)
         try:
             params_live = {
                 'live': 'all'  # Buscar todos os jogos ao vivo
             }
-            response_live = requests.get(API_URL, headers=headers, params=params_live, timeout=10)
+            response_live = requests.get(API_URL, headers=headers, params=params_live, timeout=3)
             
             if response_live.status_code == 200:
                 data_live = response_live.json()
@@ -483,7 +581,7 @@ def atualizar_placares_api(request):
                                 'timezone': 'America/Sao_Paulo'
                             }
                             
-                            response = requests.get(API_URL, headers=headers, params=params, timeout=10)
+                            response = requests.get(API_URL, headers=headers, params=params, timeout=2)
                             
                             if response.status_code == 200:
                                 data_resp = response.json()
@@ -513,7 +611,7 @@ def atualizar_placares_api(request):
                     'timezone': 'America/Sao_Paulo'
                 }
                 
-                response_recentes = requests.get(API_URL, headers=headers, params=params_recentes, timeout=10)
+                response_recentes = requests.get(API_URL, headers=headers, params=params_recentes, timeout=3)
                 
                 if response_recentes.status_code == 200:
                     data_recentes = response_recentes.json()
@@ -844,6 +942,9 @@ def save_push_subscription(request):
     """Salva a subscrição push do usuário"""
     try:
         import json
+        import logging
+        
+        logger = logging.getLogger(__name__)
         
         participante = request.user.participante
         settings, created = NotificationSettings.objects.get_or_create(participante=participante)
@@ -851,13 +952,39 @@ def save_push_subscription(request):
         # Receber dados da subscrição do frontend
         subscription_data = json.loads(request.body)
         
+        # Log para debug (especialmente útil para mobile)
+        logger.info(f"Push subscription recebida para {participante.nome_exibicao}")
+        logger.info(f"Dados: {subscription_data}")
+        
+        # Validar dados mínimos necessários
+        if 'endpoint' in subscription_data:
+            # Formato novo com dados separados
+            formatted_data = {
+                'endpoint': subscription_data['endpoint'],
+                'keys': subscription_data.get('keys', {}),
+                'mobile_info': subscription_data.get('mobile_info', {})
+            }
+        else:
+            # Formato antigo (subscription completa)
+            formatted_data = subscription_data
+        
         # Salvar os dados da subscrição
-        settings.push_subscription = subscription_data
+        settings.push_subscription = formatted_data
         settings.save()
         
-        return JsonResponse({'success': True, 'message': 'Subscrição salva com sucesso!'})
+        logger.info(f"Push subscription salva com sucesso para {participante.nome_exibicao}")
+        
+        return JsonResponse({
+            'success': True, 
+            'message': 'Subscrição salva com sucesso!',
+            'mobile_detected': subscription_data.get('mobile_info', {}).get('is_mobile', False)
+        })
     
+    except json.JSONDecodeError as e:
+        logger.error(f"Erro ao decodificar JSON da push subscription: {e}")
+        return JsonResponse({'success': False, 'error': 'Dados inválidos'})
     except Exception as e:
+        logger.error(f"Erro ao salvar push subscription: {e}")
         return JsonResponse({'success': False, 'error': str(e)})
 
 
@@ -866,14 +993,36 @@ def save_push_subscription(request):
 def test_notification(request):
     """Envia uma notificação de teste"""
     try:
+        import json
+        import logging
+        
+        logger = logging.getLogger(__name__)
         participante = request.user.participante
+        
+        # Capturar dados extras do request para debug
+        request_data = {}
+        if request.content_type == 'application/json':
+            try:
+                request_data = json.loads(request.body)
+            except:
+                pass
+        
+        # Log detalhado para debug mobile
+        user_agent = request.META.get('HTTP_USER_AGENT', '')
+        is_mobile = any(mobile in user_agent.lower() for mobile in ['mobile', 'android', 'iphone', 'ipad'])
+        
+        logger.info(f"Teste de notificação para {participante.nome_exibicao}")
+        logger.info(f"User-Agent: {user_agent}")
+        logger.info(f"Mobile detectado: {is_mobile}")
+        logger.info(f"Dados extras: {request_data}")
+        logger.info(f"HTTPS: {request.is_secure()}")
         
         # Criar notificação de teste
         notification = Notification.objects.create(
             participante=participante,
             tipo='sistema',
             titulo='🎉 Teste de Notificação',
-            mensagem='Se você está vendo isso, as notificações estão funcionando perfeitamente!',
+            mensagem=f'Se você está vendo isso, as notificações estão funcionando! {("📱 Mobile" if is_mobile else "💻 Desktop")}',
             url_acao=request.build_absolute_uri('/'),
         )
         
@@ -882,11 +1031,22 @@ def test_notification(request):
         
         if success:
             messages.success(request, 'Notificação de teste enviada com sucesso!')
-            return JsonResponse({'success': True, 'message': 'Teste enviado!'})
+            return JsonResponse({
+                'success': True, 
+                'message': 'Teste enviado!',
+                'mobile_detected': is_mobile,
+                'notification_id': notification.id
+            })
         else:
-            return JsonResponse({'success': False, 'error': 'Falha ao enviar notificação'})
+            return JsonResponse({
+                'success': False, 
+                'error': 'Falha ao enviar notificação',
+                'notification_id': notification.id
+            })
             
     except Exception as e:
+        logger.error(f"Erro no teste de notificação: {e}")
+        logger.error(f"Stack trace: {e.__traceback__}")
         return JsonResponse({'success': False, 'error': str(e)})
 
 
