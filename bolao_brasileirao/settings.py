@@ -81,7 +81,6 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
-    "bolao.middleware_debug.PerformanceMiddleware",  # Debug de performance
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "bolao_brasileirao.middleware.CSRFDebugMiddleware",  # Debug CSRF
@@ -89,11 +88,8 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
-    "bolao.middleware_debug.DatabaseOptimizationMiddleware",  # Otimização DB
-    "bolao.middleware_debug.CacheOptimizationMiddleware",  # Otimização Cache
     "bolao_brasileirao.middleware.AnalyticsMiddleware",  # Analytics
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    "bolao.middleware_debug.ErrorHandlingMiddleware",  # Tratamento de erros
 ]
 
 ROOT_URLCONF = "bolao_brasileirao.urls"

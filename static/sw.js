@@ -10,10 +10,9 @@ self.addEventListener('install', function(event) {
     event.waitUntil(
         caches.open(CACHE_NAME)
             .then(function(cache) {
-                console.log('Cache aberto:', CACHE_NAME);
                 // Cache apenas recursos básicos para evitar conflitos
                 return cache.addAll(['/']).catch(function(error) {
-                    console.log('Erro ao adicionar ao cache:', error);
+                    // Erro silencioso
                 });
             })
     );
@@ -28,11 +27,16 @@ self.addEventListener('fetch', function(event) {
         return;
     }
     
-    // Não intercepta requisições de login, logout, POST, etc.
+    // Não intercepta requisições críticas que precisam ser atuais
     if (event.request.url.includes('/login/') || 
         event.request.url.includes('/logout/') || 
         event.request.url.includes('/admin/') ||
-        event.request.url.includes('api/')) {
+        event.request.url.includes('api/') ||
+        event.request.url.includes('/perfil/') ||
+        event.request.url.includes('/palpites/') ||
+        event.request.url.includes('/classificacao/') ||
+        event.request.url.includes('?') || // URLs com parâmetros
+        event.request.headers.get('X-Requested-With') === 'XMLHttpRequest') { // AJAX
         return;
     }
     
@@ -64,7 +68,6 @@ self.addEventListener('activate', function(event) {
             return Promise.all(
                 cacheNames.map(function(cacheName) {
                     if (cacheWhitelist.indexOf(cacheName) === -1) {
-                        console.log('Removendo cache antigo:', cacheName);
                         return caches.delete(cacheName);
                     }
                 })
@@ -79,14 +82,12 @@ self.addEventListener('activate', function(event) {
 // Evento para lidar com sincronização em background
 self.addEventListener('sync', function(event) {
     if (event.tag === 'futamigo-sync') {
-        console.log('Executando sincronização em background');
-        // Aqui você pode implementar lógica de sincronização futura
+        // Lógica de sincronização futura
     }
 });
 
 // Evento para lidar com notificações push (preparado para futuro)
 self.addEventListener('push', function(event) {
-    console.log('📱 Push notification received:', event);
     
     let notificationData = {
         title: 'FutAmigo',
@@ -120,9 +121,7 @@ self.addEventListener('push', function(event) {
                 ...notificationData,
                 ...pushData
             };
-            console.log('📱 Dados do push:', pushData);
         } catch (e) {
-            console.log('📱 Push data como texto:', event.data.text());
             notificationData.body = event.data.text();
         }
     }
@@ -130,18 +129,11 @@ self.addEventListener('push', function(event) {
     // Mostrar notificação
     event.waitUntil(
         self.registration.showNotification(notificationData.title, notificationData)
-            .then(() => {
-                console.log('✅ Notificação exibida com sucesso');
-            })
-            .catch(error => {
-                console.error('❌ Erro ao exibir notificação:', error);
-            })
     );
 });
 
 // Evento para lidar com cliques em notificações
 self.addEventListener('notificationclick', function(event) {
-    console.log('📱 Notificação clicada:', event);
     event.notification.close();
 
     const urlToOpen = event.notification.data?.url || '/';
@@ -161,9 +153,6 @@ self.addEventListener('notificationclick', function(event) {
                 if (clients.openWindow) {
                     return clients.openWindow(urlToOpen);
                 }
-            })
-            .catch(error => {
-                console.error('❌ Erro ao processar clique na notificação:', error);
             })
     );
 });

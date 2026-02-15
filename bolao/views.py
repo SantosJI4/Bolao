@@ -14,31 +14,16 @@ from .forms import PerfilParticipanteForm
 
 
 def home(request):
-    """Página inicial mostrando rodadas e status - OTIMIZADA"""
-    import time
-    start_time = time.time()
-    
-    from django.core.cache import cache
-    
-    # Cache key único para cada usuário
-    cache_key = f'home_data_{request.user.id if request.user.is_authenticated else "anonymous"}'
-    cached_data = cache.get(cache_key)
-    
-    if cached_data:
-        # Se temos dados em cache (válidos por 2 minutos), usa eles
-        context = cached_data
-        context['cache_hit'] = True
-        context['load_time'] = round((time.time() - start_time) * 1000, 2)
-        return render(request, 'bolao/home.html', context)
+    """Página inicial mostrando rodadas e status"""
     
     # Busca rodadas ativas com consulta otimizada
     rodadas_ativas = Rodada.objects.filter(ativa=True).select_related().order_by('numero')
     
-    # Rodada atual: otimizada com uma única consulta
+    # Rodada atual: otimizada
     agora = timezone.now()
     rodada_atual = None
     
-    # Busca mais eficiente usando anotações
+    # Busca mais eficiente
     rodadas_list = list(rodadas_ativas)
     
     # Primeiro tenta pegar uma rodada ativa no período correto
@@ -52,11 +37,11 @@ def home(request):
         futuras = [r for r in rodadas_list if r.data_inicio > agora]
         rodada_atual = futuras[0] if futuras else (rodadas_list[-1] if rodadas_list else None)
     
-    # Filtra rodadas usando listas já carregadas (mais eficiente)
+    # Filtra rodadas usando listas já carregadas
     rodadas_futuras = [r for r in rodadas_list if r.data_inicio > agora and r != rodada_atual][:3]
     rodadas_passadas = sorted([r for r in rodadas_list if r.data_fim < agora], key=lambda x: x.numero, reverse=True)[:3]
     
-    # Participante e atualizações otimizadas
+    # Participante e atualizações
     participante = None
     atualizacao_nao_vista = None
     
@@ -65,46 +50,31 @@ def home(request):
             participante = getattr(request.user, 'participante', None)
             
             if participante:
-                # Consulta otimizada de atualizações com uma única query
+                # Busca atualizações simples
                 from .models import AtualizacaoSite, AtualizacaoVista
-                
-                # Cache das atualizações por 5 minutos
-                atualizacoes_cache_key = f'atualizacoes_{participante.id}'
-                atualizacao_nao_vista = cache.get(atualizacoes_cache_key)
-                
-                if atualizacao_nao_vista is None:
-                    atualizacoes_vistas_ids = list(AtualizacaoVista.objects.filter(participante=participante).values_list('atualizacao_id', flat=True))
-                    atualizacao_nao_vista = AtualizacaoSite.objects.filter(ativa=True).exclude(id__in=atualizacoes_vistas_ids).first()
-                    cache.set(atualizacoes_cache_key, atualizacao_nao_vista, 300)  # 5 minutos
+                atualizacoes_vistas_ids = list(AtualizacaoVista.objects.filter(participante=participante).values_list('atualizacao_id', flat=True))
+                atualizacao_nao_vista = AtualizacaoSite.objects.filter(ativa=True).exclude(id__in=atualizacoes_vistas_ids).first()
                 
         except Exception as e:
+            pass
             import logging
             logging.warning(f'Erro ao buscar participante: {e}')
     
-    # Preparar dados para cache e resposta
+    # Preparar dados para resposta
     context = {
         'rodada_atual': rodada_atual,
         'rodadas_futuras': rodadas_futuras,
         'rodadas_passadas': rodadas_passadas,
         'participante': participante,
-        'atualizacao_nao_vista': atualizacao_nao_vista,
-        'cache_hit': False,
-        'load_time': round((time.time() - start_time) * 1000, 2)
+        'atualizacao_nao_vista': atualizacao_nao_vista
     }
-    
-    # Cache por 2 minutos (120 segundos)
-    cache.set(cache_key, context, 120)
     
     return render(request, 'bolao/home.html', context)
 
 
 @login_required
 def rodada_palpites(request, rodada_id):
-    """Página para fazer palpites ou visualizar palpites da rodada - OTIMIZADA"""
-    import time
-    from django.core.cache import cache
-    
-    start_time = time.time()
+    """Página para fazer palpites ou visualizar palpites da rodada"""
     
     rodada = get_object_or_404(Rodada.objects.select_related(), id=rodada_id)
     
@@ -124,38 +94,20 @@ def rodada_palpites(request, rodada_id):
     # Consulta otimizada de jogos com times relacionados
     jogos = rodada.jogo_set.select_related('time_casa', 'time_visitante').all().order_by('data_hora')
     
-    # Cache para palpites existentes do usuário (1 minuto de cache)
-    palpites_cache_key = f'palpites_{participante.id}_{rodada_id}'
-    palpites_existentes = cache.get(palpites_cache_key)
+    # Palpites existentes do usuário
+    palpites_existentes = {}
+    for palpite in Palpite.objects.select_related('jogo').filter(participante=participante, jogo__rodada=rodada):
+        palpites_existentes[palpite.jogo.id] = palpite
     
-    if palpites_existentes is None:
-        palpites_existentes = {}
-        for palpite in Palpite.objects.select_related('jogo').filter(participante=participante, jogo__rodada=rodada):
-            palpites_existentes[palpite.jogo.id] = palpite
-        cache.set(palpites_cache_key, palpites_existentes, 60)  # 1 minuto
-    
-    # Se não pode palpitar, buscar todos os palpites para a planilha (com cache)
+    # Se não pode palpitar, buscar todos os palpites para a planilha
     todos_palpites = {}
     participantes_ativos = []
     if not pode_palpitar:
-        planilha_cache_key = f'planilha_palpites_{rodada_id}'
-        cached_planilha = cache.get(planilha_cache_key)
-        
-        if cached_planilha:
-            todos_palpites = cached_planilha['palpites']
-            participantes_ativos = cached_planilha['participantes']
-        else:
-            participantes_ativos = list(Participante.objects.filter(ativo=True).order_by('nome_exibicao'))
-            for jogo in jogos:
-                todos_palpites[jogo.id] = {}
-                for palpite in Palpite.objects.select_related('participante').filter(jogo=jogo):
-                    todos_palpites[jogo.id][palpite.participante.id] = palpite
-            
-            # Cache da planilha por 2 minutos
-            cache.set(planilha_cache_key, {
-                'palpites': todos_palpites,
-                'participantes': participantes_ativos
-            }, 120)
+        participantes_ativos = list(Participante.objects.filter(ativo=True).order_by('nome_exibicao'))
+        for jogo in jogos:
+            todos_palpites[jogo.id] = {}
+            for palpite in Palpite.objects.select_related('participante').filter(jogo=jogo):
+                todos_palpites[jogo.id][palpite.participante.id] = palpite
     
     if request.method == 'POST' and pode_palpitar:
         todos_palpites_validos = True
@@ -190,16 +142,11 @@ def rodada_palpites(request, rodada_id):
                     continue
         
         if palpites_salvos:
-            # Limpa caches relacionados
-            cache.delete(palpites_cache_key)
-            cache.delete(f'planilha_palpites_{rodada_id}')
-            
             messages.success(request, f"Palpites salvos com sucesso! {len(palpites_salvos)} jogos.")
             return redirect('home')
         else:
             messages.error(request, "Nenhum palpite foi salvo. Verifique os dados.")
     
-    load_time = round((time.time() - start_time) * 1000, 2)
     
     context = {
         'rodada': rodada,
@@ -208,8 +155,7 @@ def rodada_palpites(request, rodada_id):
         'palpites_existentes': palpites_existentes,
         'pode_palpitar': pode_palpitar,
         'todos_palpites': todos_palpites,
-        'participantes_ativos': participantes_ativos,
-        'load_time': load_time
+        'participantes_ativos': participantes_ativos
     }
     
     return render(request, 'bolao/palpites.html', context)
@@ -240,46 +186,28 @@ def resultados_rodada(request, rodada_id):
 
 
 def classificacao(request):
-    """Página da classificação geral - OTIMIZADA"""
-    import time
-    from django.core.cache import cache
-    
-    start_time = time.time()
-    
-    # Cache da classificação por 5 minutos (dados não mudam frequentemente)
-    cache_key = 'classificacao_geral'
-    cached_data = cache.get(cache_key)
-    
-    if cached_data:
-        cached_data['cache_hit'] = True
-        cached_data['load_time'] = round((time.time() - start_time) * 1000, 2)
-        return render(request, 'bolao/classificacao.html', cached_data)
+    """Página da classificação geral"""
     
     # Consultas otimizadas com select_related
     classificacoes = Classificacao.objects.select_related('participante').all().order_by('posicao')
     
-    # Estatísticas gerais com uma consulta por vez
+    # Estatísticas gerais
     total_participantes = Participante.objects.filter(ativo=True).count()
     total_jogos_finalizados = Jogo.objects.filter(resultado_finalizado=True).count()
+    total_palpites = Palpite.objects.count()
     
     context = {
-        'classificacoes': list(classificacoes),  # Força avaliação da queryset
+        'classificacoes': list(classificacoes),
         'total_participantes': total_participantes,
         'total_jogos_finalizados': total_jogos_finalizados,
-        'cache_hit': False,
-        'load_time': round((time.time() - start_time) * 1000, 2)
+        'total_palpites': total_palpites
     }
-    
-    # Cache por 5 minutos
-    cache.set(cache_key, context, 300)
     
     return render(request, 'bolao/classificacao.html', context)
 
 
 def login_participante(request):
-    """Página de login para participantes - OTIMIZADA"""
-    import time
-    start_time = time.time()
+    """Página de login para participantes"""
     
     if request.user.is_authenticated:
         return redirect('home')
@@ -290,21 +218,11 @@ def login_participante(request):
         
         user = authenticate(request, username=username, password=password)
         if user is not None:
-            # Verifica se o usuário tem um participante associado (consulta otimizada)
+            # Verifica se o usuário tem um participante associado
             try:
                 participante = getattr(user, 'participante', None)
                 if participante and participante.ativo:
                     auth_login(request, user)
-                    
-                    # Limpa caches relacionados ao usuário
-                    from django.core.cache import cache
-                    cache.delete(f'home_data_{user.id}')
-                    cache.delete(f'atualizacoes_{participante.id}')
-                    
-                    # Log de performance
-                    login_time = round((time.time() - start_time) * 1000, 2)
-                    import logging
-                    logging.info(f'Login realizado em {login_time}ms para {participante.nome_exibicao}')
                     
                     messages.success(request, f"Bem-vindo(a), {participante.nome_exibicao}!")
                     return redirect('home')
@@ -560,7 +478,8 @@ def atualizar_placares_api(request):
                     fonte = 'ao_vivo_brasileirao'
                     
         except Exception as e:
-            print(f"Erro jogos ao vivo Brasileirão: {e}")
+            # Erro silencioso
+            pass
         
         # 2. SE NÃO HÁ JOGOS AO VIVO, BUSCAR PRÓXIMOS JOGOS - APENAS BRASILEIRÃO
         if not jogos_api:
@@ -599,7 +518,8 @@ def atualizar_placares_api(request):
                         break
                             
             except Exception as e:
-                print(f"Erro próximos jogos Brasileirão: {e}")
+                # Erro silencioso
+                pass
         
         # 3. FALLBACK: ÚLTIMOS JOGOS DO BRASILEIRÃO 2024 PARA DEMONSTRAÇÃO
         if not jogos_api:
@@ -622,7 +542,8 @@ def atualizar_placares_api(request):
                         fonte = 'recentes_brasileirao_2024'
                         
             except Exception as e:
-                print(f"Erro fallback Brasileirão: {e}")
+                # Erro silencioso
+                pass
         
         # 4. SE AINDA NÃO TEM NADA, DADOS SIMULADOS DO BRASILEIRÃO
         if not jogos_api:
@@ -716,7 +637,8 @@ def atualizar_placares_api(request):
                 jogos_processados.append(jogo_info)
                 
             except Exception as e:
-                print(f"Erro ao processar jogo: {e}")
+                # Erro silencioso - continua processamento
+                continue
                 continue
         
         # Ordena: ao vivo primeiro, depois agendados, depois finalizados
@@ -895,7 +817,7 @@ def service_worker(request):
         const CACHE_NAME = 'futamigo-v1';
         
         self.addEventListener('install', function(event) {
-            console.log('Service Worker instalado');
+            // Service Worker instalado
         });
         
         self.addEventListener('fetch', function(event) {

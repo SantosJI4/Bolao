@@ -29,18 +29,16 @@ class CSRFDebugMiddleware(MiddlewareMixin):
             )
             
             if not csrf_token and not settings.DEBUG:
-                logger.warning(f"CSRF Token ausente em POST para {request.path}")
-                logger.warning(f"User-Agent: {request.META.get('HTTP_USER_AGENT', 'Unknown')}")
-                logger.warning(f"Referer: {request.META.get('HTTP_REFERER', 'None')}")
+                # CSRF ausente - tratar silenciosamente
+                pass
                 
         return None
     
     def process_response(self, request, response):
-        # Se for erro CSRF (403), adiciona headers de debug
+        # Se for erro CSRF (403), tratar silenciosamente
         if response.status_code == 403 and not settings.DEBUG:
-            logger.error(f"CSRF 403 error for {request.path}")
-            logger.error(f"Method: {request.method}")
-            logger.error(f"Origin: {request.META.get('HTTP_ORIGIN', 'None')}")
+            # Erro 403 - sem logs
+            pass
             
         return response
 
@@ -53,9 +51,7 @@ class SafeCSRFMiddleware(MiddlewareMixin):
     def process_exception(self, request, exception):
         # Se for erro relacionado a CSRF, tenta uma recuperação suave
         if 'CSRF' in str(exception) or 'csrf' in str(exception).lower():
-            logger.error(f"CSRF Exception caught: {exception}")
-            logger.error(f"Path: {request.path}")
-            logger.error(f"Method: {request.method}")
+            # Erro CSRF - tratar silenciosamente
             
             # Em produção, retorna uma página amigável em vez de crash
             if not settings.DEBUG:
@@ -218,7 +214,8 @@ class AnalyticsMiddleware(MiddlewareMixin):
                 self.atualizar_pagina_popular(request.path, titulo_pagina)
                 
         except Exception as e:
-            logger.error(f"Erro ao registrar ação de analytics: {e}")
+            # Erro silencioso em analytics
+            pass
     
     def get_page_title(self, path):
         """Obtém título amigável da página baseado na URL"""
@@ -258,4 +255,5 @@ class AnalyticsMiddleware(MiddlewareMixin):
             pagina.save()
             
         except Exception as e:
-            logger.error(f"Erro ao atualizar página popular: {e}")
+            # Erro silencioso ao atualizar página
+            pass
