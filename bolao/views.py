@@ -915,6 +915,53 @@ self.addEventListener('fetch', function(event) {
         })
     );
 });
+
+// Handler para clique em notificações (essencial para Android)
+self.addEventListener('notificationclick', function(event) {
+    event.notification.close();
+    
+    const urlToOpen = (event.notification.data && event.notification.data.url) || '/';
+    
+    event.waitUntil(
+        clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
+            // Se já tem uma aba aberta, foca nela
+            for (var i = 0; i < clientList.length; i++) {
+                var client = clientList[i];
+                if ('focus' in client) {
+                    return client.focus();
+                }
+            }
+            // Senão, abre nova aba
+            if (clients.openWindow) {
+                return clients.openWindow(urlToOpen);
+            }
+        })
+    );
+});
+
+// Handler para push notifications do servidor (futuro)
+self.addEventListener('push', function(event) {
+    var data = { title: 'FutAmigo', body: 'Nova notificação!', url: '/' };
+    
+    if (event.data) {
+        try {
+            data = event.data.json();
+        } catch (e) {
+            data.body = event.data.text();
+        }
+    }
+    
+    event.waitUntil(
+        self.registration.showNotification(data.title || 'FutAmigo', {
+            body: data.body || 'Nova notificação do bolão!',
+            icon: '/static/icons/icon-192x192.png',
+            badge: '/static/icons/icon-72x72.png',
+            vibrate: [200, 100, 200],
+            tag: 'futamigo-push',
+            data: { url: data.url || '/' }
+        })
+    );
+});
     """
     
     return HttpResponse(smart_sw, content_type='application/javascript')

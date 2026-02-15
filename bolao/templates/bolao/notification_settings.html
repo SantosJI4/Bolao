@@ -394,17 +394,29 @@ async function requestNotificationPermission() {
             // Salvar subscription para push notifications
             await savePushSubscription();
             
-            // Mostrar notificação de teste imediata
+            // Mostrar notificação de confirmação via Service Worker (funciona em TODOS os dispositivos)
             try {
-                new Notification('🎉 FutAmigo', {
-                    body: 'Notificações ativadas com sucesso!',
-                    icon: '/static/icons/icon-192x192.png',
-                    tag: 'permission-granted',
-                    silent: false,
-                    requireInteraction: false
-                });
+                if (serviceWorkerRegistration) {
+                    await serviceWorkerRegistration.showNotification('🎉 FutAmigo', {
+                        body: 'Notificações ativadas com sucesso!',
+                        icon: '/static/icons/icon-192x192.png',
+                        badge: '/static/icons/icon-72x72.png',
+                        tag: 'permission-granted',
+                        vibrate: [200, 100, 200],
+                        silent: false,
+                        requireInteraction: false
+                    });
+                    console.log('✅ Notificação enviada via Service Worker');
+                } else {
+                    // Fallback para desktop (new Notification não funciona no Android)
+                    new Notification('🎉 FutAmigo', {
+                        body: 'Notificações ativadas com sucesso!',
+                        icon: '/static/icons/icon-192x192.png',
+                        tag: 'permission-granted'
+                    });
+                }
             } catch (notifError) {
-                console.log('Notificação local falhou:', notifError);
+                console.log('Notificação de confirmação falhou:', notifError);
             }
             
             showToast('Notificações ativadas com sucesso! 🎉', 'success');
@@ -532,47 +544,56 @@ async function testNotification() {
             throw new Error('Contexto não seguro - HTTPS necessário');
         }
         
-        // Teste de notificação local primeiro (mais confiável no mobile)
-        console.log('🧪 Testando notificação local...');
+        // Teste de notificação via Service Worker (funciona em TODOS os dispositivos incl. Android)
+        console.log('🧪 Testando notificação via Service Worker...');
+        
+        let notificationShown = false;
         
         try {
-            const localNotification = new Notification('🧪 Teste do FutAmigo', {
-                body: 'Esta é uma notificação de teste local. Se você vê isso, está funcionando!',
-                icon: '/static/icons/icon-192x192.png',
-                badge: '/static/icons/icon-72x72.png',
-                tag: 'test-local',
-                vibrate: [200, 100, 200],
-                silent: false,
-                requireInteraction: false,
-                timestamp: Date.now(),
-                data: {
-                    url: window.location.origin,
-                    test: true
-                }
-            });
+            // Aguardar Service Worker ficar pronto
+            const swReg = serviceWorkerRegistration || await navigator.serviceWorker.ready;
             
-            localNotification.onclick = function() {
-                console.log('🧪 Notificação local clicada');
-                this.close();
-            };
-            
-            localNotification.onshow = function() {
-                console.log('✅ Notificação local exibida com sucesso');
-            };
-            
-            localNotification.onerror = function(error) {
-                console.error('❌ Erro na notificação local:', error);
-            };
-            
-            // Fechar automaticamente após 5 segundos
-            setTimeout(() => {
-                if (localNotification) {
-                    localNotification.close();
-                }
-            }, 5000);
-            
-        } catch (localError) {
-            console.error('❌ Erro na notificação local:', localError);
+            if (swReg) {
+                await swReg.showNotification('🧪 Teste do FutAmigo', {
+                    body: 'Esta é uma notificação de teste. Se você vê isso, está funcionando! 📱',
+                    icon: '/static/icons/icon-192x192.png',
+                    badge: '/static/icons/icon-72x72.png',
+                    tag: 'test-notification-' + Date.now(),
+                    vibrate: [200, 100, 200],
+                    silent: false,
+                    requireInteraction: false,
+                    timestamp: Date.now(),
+                    data: {
+                        url: window.location.origin,
+                        test: true
+                    },
+                    actions: [
+                        { action: 'open', title: 'Abrir FutAmigo' }
+                    ]
+                });
+                console.log('✅ Notificação exibida via Service Worker');
+                notificationShown = true;
+            }
+        } catch (swError) {
+            console.error('❌ Erro no Service Worker notification:', swError);
+        }
+        
+        // Fallback: new Notification (funciona em desktop, mas não em Android)
+        if (!notificationShown) {
+            try {
+                console.log('🧪 Fallback: tentando new Notification...');
+                const localNotification = new Notification('🧪 Teste do FutAmigo', {
+                    body: 'Notificação de teste local. Se você vê isso, está funcionando!',
+                    icon: '/static/icons/icon-192x192.png',
+                    tag: 'test-local',
+                    silent: false
+                });
+                
+                setTimeout(() => localNotification.close(), 5000);
+                notificationShown = true;
+            } catch (localError) {
+                console.error('❌ Fallback também falhou:', localError);
+            }
         }
         
         // Agora tenta o teste via servidor
