@@ -104,43 +104,54 @@ class AnalyticsMiddleware(MiddlewareMixin):
         if any(path in request.path for path in ['/static/', '/media/', '/admin/', '/api/']):
             return None
         
-        # Importa aqui para evitar circular import
-        from bolao.models import SessaoVisita, AcaoUsuario, Participante
-        
-        # Obtém informações da requisição
-        ip = self.get_client_ip(request)
-        user_agent = request.META.get('HTTP_USER_AGENT', '')
-        
-        # Obtém ou cria sessão
-        session_key = request.session.session_key or request.session._get_new_session_key()
-        request.session.save()
-        
         try:
-            sessao = SessaoVisita.objects.get(session_id=session_key, ativo=True)
-        except SessaoVisita.DoesNotExist:
-            # Informações do dispositivo
-            device_info = self.get_device_info(user_agent)
+            # Importa aqui para evitar circular import
+            from bolao.models import SessaoVisita, AcaoUsuario, Participante
             
-            sessao = SessaoVisita.objects.create(
-                session_id=session_key,
-                ip_address=ip,
-                user_agent=user_agent,
-                dispositivo_tipo=device_info['device_type'],
-                navegador=device_info['browser'],
-                sistema_operacional=device_info['os']
-            )
-        
-        # Atualiza participante se logado
-        if request.user.is_authenticated:
+            # Obtém informações da requisição
+            ip = self.get_client_ip(request)
+            user_agent = request.META.get('HTTP_USER_AGENT', '')
+            
+            # Obtém ou cria sessão de forma segura
+            session_key = request.session.session_key
+            if not session_key:
+                try:
+                    request.session.create()
+                    session_key = request.session.session_key
+                except Exception:
+                    # Se não conseguir criar sessão, pula analytics
+                    return None
+            
             try:
-                participante = Participante.objects.get(user=request.user)
-                sessao.participante = participante
-                sessao.save()
-            except Participante.DoesNotExist:
-                pass
-        
-        # Salva a sessão no request para uso posterior
-        request._analytics_sessao = sessao
+                sessao = SessaoVisita.objects.get(session_id=session_key, ativo=True)
+            except SessaoVisita.DoesNotExist:
+                # Informações do dispositivo
+                device_info = self.get_device_info(user_agent)
+                
+                sessao = SessaoVisita.objects.create(
+                    session_id=session_key,
+                    ip_address=ip,
+                    user_agent=user_agent,
+                    dispositivo_tipo=device_info['device_type'],
+                    navegador=device_info['browser'],
+                    sistema_operacional=device_info['os']
+                )
+            
+            # Atualiza participante se logado
+            if request.user.is_authenticated:
+                try:
+                    participante = Participante.objects.get(user=request.user)
+                    sessao.participante = participante
+                    sessao.save()
+                except Participante.DoesNotExist:
+                    pass
+            
+            # Salva a sessão no request para uso posterior
+            request._analytics_sessao = sessao
+            
+        except Exception:
+            # Se qualquer parte do analytics falhar, continua sem quebrar a app
+            pass
         
         return None
     
@@ -157,8 +168,12 @@ class AnalyticsMiddleware(MiddlewareMixin):
             return response
         
         # Salva a ação se tem sessão
-        if hasattr(request, '_analytics_sessao'):
-            self.registrar_acao(request, response, response_time)
+        try:
+            if hasattr(request, '_analytics_sessao'):
+                self.registrar_acao(request, response, response_time)
+        except Exception:
+            # Se analytics falhar, continua sem quebrar a app
+            pass
         
         return response
     
