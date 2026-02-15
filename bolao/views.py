@@ -45,20 +45,25 @@ def home(request):
     participante = None
     atualizacao_nao_vista = None
     
+    # Verificação simples e direta
     if request.user.is_authenticated:
         try:
-            participante = getattr(request.user, 'participante', None)
+            # Busca explícita do participante
+            from .models import Participante
+            participante = Participante.objects.get(user=request.user)
             
-            if participante:
-                # Busca atualizações simples
-                from .models import AtualizacaoSite, AtualizacaoVista
-                atualizacoes_vistas_ids = list(AtualizacaoVista.objects.filter(participante=participante).values_list('atualizacao_id', flat=True))
-                atualizacao_nao_vista = AtualizacaoSite.objects.filter(ativa=True).exclude(id__in=atualizacoes_vistas_ids).first()
+            # Busca atualizações simples
+            from .models import AtualizacaoSite, AtualizacaoVista
+            atualizacoes_vistas_ids = list(AtualizacaoVista.objects.filter(participante=participante).values_list('atualizacao_id', flat=True))
+            atualizacao_nao_vista = AtualizacaoSite.objects.filter(ativa=True).exclude(id__in=atualizacoes_vistas_ids).first()
                 
+        except Participante.DoesNotExist:
+            # Usuário autenticado mas sem participante (ex: admin)
+            participante = None
         except Exception as e:
-            pass
+            participante = None
             import logging
-            logging.warning(f'Erro ao buscar participante: {e}')
+            logging.warning(f'Erro ao buscar participante para user {request.user.username}: {e}')
     
     # Preparar dados para resposta
     context = {
@@ -69,7 +74,18 @@ def home(request):
         'atualizacao_nao_vista': atualizacao_nao_vista
     }
     
-    return render(request, 'bolao/home.html', context)
+    # Renderiza o template
+    response = render(request, 'bolao/home.html', context)
+    
+    # Headers agressivos para evitar qualquer tipo de cache
+    response['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0, private'
+    response['Pragma'] = 'no-cache'
+    response['Expires'] = '0'
+    response['X-Accel-Expires'] = '0'
+    response['Vary'] = 'Cookie'
+    response['Last-Modified'] = timezone.now().strftime('%a, %d %b %Y %H:%M:%S GMT')
+    
+    return response
 
 
 @login_required
@@ -225,7 +241,12 @@ def login_participante(request):
                     auth_login(request, user)
                     
                     messages.success(request, f"Bem-vindo(a), {participante.nome_exibicao}!")
-                    return redirect('home')
+                    # Sempre redireciona para home, ignorando next se for logout
+                    next_url = request.GET.get('next', 'home')
+                    if 'logout' in str(next_url):
+                        next_url = 'home'
+                    
+                    return redirect(next_url)
                 elif participante:
                     messages.error(request, "Sua conta está inativa. Entre em contato com o administrador.")
                 else:
@@ -240,12 +261,36 @@ def login_participante(request):
     return render(request, 'bolao/login.html')
 
 
-@login_required
 def logout_participante(request):
     """Logout do participante"""
+    # Limpa cache específico do usuário se existir
+    from django.core.cache import cache
+    user_cache_key = f"user_data_{request.user.id}"
+    cache.delete(user_cache_key)
+    
+    # Método mais seguro para logout sem conflitos de sessão
+    # Salva dados antes de limpar
+    user_to_logout = request.user
+    
+    # Executa o logout antes de manipular a sessão
     auth_logout(request)
+    
+    # Agora limpa a sessão de forma segura
+    try:
+        request.session.clear()
+        request.session.cycle_key()  # Gera nova chave de sessão
+    except Exception:
+        pass  # Ignora erros de sessão durante logout
+    
     messages.success(request, "Você foi desconectado com sucesso.")
-    return redirect('home')
+    
+    # Resposta com headers para evitar cache do navegador - sempre redireciona para home
+    response = redirect('home')
+    response['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+    response['Pragma'] = 'no-cache'
+    response['Expires'] = '0'
+    response['X-Accel-Expires'] = '0'
+    return response
 
 
 def perfil_participante(request, participante_id):
@@ -798,33 +843,151 @@ def manifest(request):
 
 
 def service_worker(request):
-    """Serve o service worker com Content-Type correto"""
-    try:
-        sw_path = os.path.join(settings.STATIC_ROOT or settings.BASE_DIR / 'static', 'sw.js')
-        
-        # Se não encontrar no STATIC_ROOT, tenta no diretório static do projeto
-        if not os.path.exists(sw_path):
-            sw_path = os.path.join(settings.BASE_DIR, 'static', 'sw.js')
-        
-        with open(sw_path, 'r', encoding='utf-8') as f:
-            sw_content = f.read()
-        
-        return HttpResponse(sw_content, content_type='application/javascript')
+    """Serve um service worker inteligente para PWA com página offline personalizada"""
+    # Service worker otimizado para PWA - cache apenas assets estáticos + página offline
+    smart_sw = """
+// Service Worker inteligente - cache assets + página offline personalizada
+const CACHE_NAME = 'futamigo-static-v2';
+const OFFLINE_URL = '/offline/';
+const STATIC_RESOURCES = [
+    '/static/',
+    '/media/',
+    '/manifest.json',
+    OFFLINE_URL  // Cacheia a página offline
+];
+
+// URLs que NUNCA devem ser cacheadas (páginas dinâmicas)
+const NEVER_CACHE = [
+    '/',
+    '/login/',
+    '/logout/',
+    '/classificacao/',
+    '/rodada/',
+    '/api/',
+    '/admin/',
+    '/offline/'  // Não cachear a própria página offline como resposta
+];
+
+self.addEventListener('install', function(event) {
+    console.log('SW: Instalando service worker inteligente com página offline');
     
-    except FileNotFoundError:
-        # Service worker básico caso não encontre o arquivo
-        basic_sw = """
-        const CACHE_NAME = 'futamigo-v1';
-        
-        self.addEventListener('install', function(event) {
-            // Service Worker instalado
-        });
-        
-        self.addEventListener('fetch', function(event) {
-            // Estratégia básica de cache
-        });
-        """
-        return HttpResponse(basic_sw, content_type='application/javascript')
+    event.waitUntil(
+        caches.open(CACHE_NAME).then(function(cache) {
+            // Cacheia a página offline imediatamente
+            return cache.add(OFFLINE_URL);
+        }).then(() => {
+            // Ativo imediatamente sem esperar
+            return self.skipWaiting();
+        })
+    );
+});
+
+self.addEventListener('activate', function(event) {
+    console.log('SW: Ativando service worker');
+    event.waitUntil(
+        // Limpa caches antigos se houver
+        caches.keys().then(function(cacheNames) {
+            return Promise.all(
+                cacheNames.map(function(cacheName) {
+                    if (cacheName !== CACHE_NAME) {
+                        console.log('SW: Removendo cache antigo:', cacheName);
+                        return caches.delete(cacheName);
+                    }
+                })
+            );
+        }).then(() => {
+            // Controla todas as abas abertas imediatamente
+            return self.clients.claim();
+        })
+    );
+});
+
+self.addEventListener('fetch', function(event) {
+    const requestURL = new URL(event.request.url);
+    
+    // Se está tentando acessar a página offline, serve do cache
+    if (requestURL.pathname === OFFLINE_URL) {
+        event.respondWith(
+            caches.open(CACHE_NAME).then(cache => {
+                return cache.match(OFFLINE_URL);
+            })
+        );
+        return;
+    }
+    
+    // Verifica se é uma URL que nunca deve ser cacheada
+    const shouldNotCache = NEVER_CACHE.some(path => 
+        requestURL.pathname.startsWith(path)
+    );
+    
+    if (shouldNotCache) {
+        // Para páginas dinâmicas: sempre busca na rede (sem cache)
+        event.respondWith(
+            fetch(event.request).catch(() => {
+                // Se offline, serve a página offline personalizada
+                return caches.open(CACHE_NAME).then(cache => {
+                    return cache.match(OFFLINE_URL);
+                });
+            })
+        );
+        return;
+    }
+    
+    // Para arquivos estáticos: cache first
+    if (STATIC_RESOURCES.some(path => requestURL.pathname.includes(path))) {
+        event.respondWith(
+            caches.open(CACHE_NAME).then(function(cache) {
+                return cache.match(event.request).then(function(response) {
+                    if (response) {
+                        // Retorna do cache se disponível
+                        return response;
+                    }
+                    // Se não está no cache, busca na rede e cacheia
+                    return fetch(event.request).then(function(networkResponse) {
+                        if (networkResponse.ok) {
+                            cache.put(event.request, networkResponse.clone());
+                        }
+                        return networkResponse;
+                    }).catch(() => {
+                        // Se é um arquivo estático e está offline, tenta alternativas
+                        if (requestURL.pathname.includes('.css')) {
+                            return new Response('/* Arquivo CSS offline */', { 
+                                headers: { 'Content-Type': 'text/css' } 
+                            });
+                        }
+                        if (requestURL.pathname.includes('.js')) {
+                            return new Response('// Arquivo JS offline', { 
+                                headers: { 'Content-Type': 'application/javascript' } 
+                            });
+                        }
+                        return response;
+                    });
+                });
+            })
+        );
+        return;
+    }
+    
+    // Para todo o resto: network first com fallback para offline
+    event.respondWith(
+        fetch(event.request).catch(() => {
+            // Se falhar e for uma requisição de navegação, serve página offline
+            if (event.request.mode === 'navigate') {
+                return caches.open(CACHE_NAME).then(cache => {
+                    return cache.match(OFFLINE_URL);
+                });
+            }
+        })
+    );
+});
+    """
+    
+    return HttpResponse(smart_sw, content_type='application/javascript')
+
+
+def offline_page(request):
+    """Página offline para PWA"""
+    return render(request, 'bolao/offline.html')
 
 
 @login_required

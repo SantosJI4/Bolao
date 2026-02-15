@@ -18,6 +18,7 @@ urlpatterns = [
     # PWA URLs
     path('manifest.json', views.manifest, name='manifest'),
     path('sw.js', views.service_worker, name='service_worker'),
+    path('offline/', views.offline_page, name='offline'),
     # Notification URLs
     path('notificacoes/', views.notification_settings, name='notification_settings'),
     path('api/save-push-subscription/', views.save_push_subscription, name='save_push_subscription'),

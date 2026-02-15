@@ -137,14 +137,22 @@ class AnalyticsMiddleware(MiddlewareMixin):
                     sistema_operacional=device_info['os']
                 )
             
-            # Atualiza participante se logado
-            if request.user.is_authenticated:
+            # Atualiza participante se logado - mas não durante logout
+            if request.user.is_authenticated and 'logout' not in request.path:
                 try:
                     participante = Participante.objects.get(user=request.user)
                     sessao.participante = participante
                     sessao.save()
                 except Participante.DoesNotExist:
                     pass
+            elif 'logout' in request.path:
+                # Durante logout, remove participante da sessão
+                try:
+                    sessao.participante = None
+                    sessao.ativo = False
+                    sessao.save()
+                except Exception:
+                    pass  # Ignora erros durante logout
             
             # Salva a sessão no request para uso posterior
             request._analytics_sessao = sessao
@@ -163,13 +171,17 @@ class AnalyticsMiddleware(MiddlewareMixin):
         else:
             response_time = None
         
-        # Não rastreia arquivos estáticos
+        # Não rastreia arquivos estáticos ou durante problemas de sessão
         if any(path in request.path for path in ['/static/', '/media/', '/admin/', '/api/']):
+            return response
+        
+        # Não processa analytics durante logout para evitar conflitos de sessão
+        if 'logout' in request.path:
             return response
         
         # Salva a ação se tem sessão
         try:
-            if hasattr(request, '_analytics_sessao'):
+            if hasattr(request, '_analytics_sessao') and response.status_code < 500:
                 self.registrar_acao(request, response, response_time)
         except Exception:
             # Se analytics falhar, continua sem quebrar a app

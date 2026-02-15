@@ -26,8 +26,7 @@ IS_PRODUCTION = os.environ.get('SQUARECLOUD_ENV') == 'production' or 'squareweb.
 SECRET_KEY = "django-insecure-=(w5e#v56#l&@yjdx5#v2i_dmhp-d*i7i1keztz1x8z6bi(orp"
 
 # SECURITY WARNING: don't run with debug turned on in production!
-# For debugging CSRF issues temporarily enable debug
-DEBUG = True  # Temporarily enable to see detailed error messages
+DEBUG = not IS_PRODUCTION  # False em produção, True em desenvolvimento
 
 ALLOWED_HOSTS = ['futamigo.squareweb.app', 'www.futamigo.squareweb.app', '127.0.0.1', 'localhost', '0.0.0.0', '*']
 
@@ -191,18 +190,20 @@ CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
         'LOCATION': 'futamigo-cache',
-        'TIMEOUT': 300,  # 5 minutos default
+        'TIMEOUT': 60,  # Reduzido para 1 minuto para evitar cache persistente
         'OPTIONS': {
-            'MAX_ENTRIES': 1000,
-            'CULL_FREQUENCY': 3,
+            'MAX_ENTRIES': 500,  # Reduzido para limpar mais frequentemente
+            'CULL_FREQUENCY': 2,  # Limpa mais frequentemente
         }
     }
 }
 
 # Cache para sessões (melhora login/logout)
-SESSION_ENGINE = 'django.contrib.sessions.backends.cached_db'
-SESSION_CACHE_ALIAS = 'default'
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'  # Mudado para DB puro para evitar problemas de cache
+SESSION_SAVE_EVERY_REQUEST = False  # Desabilita para evitar conflitos com flush
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 SESSION_COOKIE_AGE = 86400  # 24 horas
+SESSION_COOKIE_HTTPONLY = True
 
 # Database optimizations
 DATABASES = {
