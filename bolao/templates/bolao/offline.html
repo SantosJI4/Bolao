@@ -183,7 +183,7 @@
             const statusContainer = document.getElementById('status');
             
             if (navigator.onLine) {
-                statusEl.textContent = 'Online';
+                statusEl.textContent = 'Online - Reconectando...';
                 statusContainer.className = 'status online';
             } else {
                 statusEl.textContent = 'Offline';
@@ -191,7 +191,7 @@
             }
         }
         
-        // Tenta reconectar
+        // Tenta reconectar (só quando o usuário clica)
         function tryReconnect() {
             const loadingEl = document.getElementById('loading');
             const btn = document.querySelector('.retry-btn');
@@ -199,80 +199,36 @@
             loadingEl.style.display = 'inline-block';
             btn.disabled = true;
             
-            // Tenta acessar a home
-            fetch('/', { method: 'HEAD', cache: 'no-cache' })
-                .then(response => {
-                    if (response.ok) {
-                        // Se conseguiu conectar, redireciona para home
-                        window.location.href = '/';
-                    } else {
-                        throw new Error('Sem conexão');
-                    }
-                })
-                .catch(() => {
-                    // Ainda offline
-                    loadingEl.style.display = 'none';
-                    btn.disabled = false;
-                    updateConnectionStatus();
-                    
-                    // Feedback visual
-                    btn.textContent = 'Ainda sem conexão - Tente novamente';
-                    setTimeout(() => {
-                        btn.innerHTML = 'Tentar Novamente <span id="loading" class="loading" style="display: none;"></span>';
-                    }, 2000);
-                });
+            // Simplesmente tenta navegar para a home
+            window.location.href = '/';
+            
+            // Se depois de 5s ainda está aqui, é porque falhou
+            setTimeout(() => {
+                loadingEl.style.display = 'none';
+                btn.disabled = false;
+                updateConnectionStatus();
+                btn.textContent = 'Ainda sem conexão - Tente novamente';
+                setTimeout(() => {
+                    btn.innerHTML = 'Tentar Novamente <span id="loading" class="loading" style="display: none;"></span>';
+                }, 2000);
+            }, 5000);
         }
         
         // Listeners para mudança de conexão
         window.addEventListener('online', updateConnectionStatus);
         window.addEventListener('offline', updateConnectionStatus);
         
-        // Auto-retry quando volta online (com debounce)
-        let onlineTimeout;
+        // Auto-retry quando volta online (único evento, sem polling)
         window.addEventListener('online', () => {
-            clearTimeout(onlineTimeout);
-            onlineTimeout = setTimeout(() => {
-                autoCheckEnabled = false; // Para outros checks
+            setTimeout(() => {
                 window.location.href = '/';
-            }, 2000); // Aguarda 2s para estabilizar conexão
+            }, 2000);
         });
         
         // Status inicial
         updateConnectionStatus();
         
-        // Auto-check apenas se necessário (2 minutos para reduzir requisições)
-        let autoCheckEnabled = true;
-        
-        function startAutoCheck() {
-            if (!autoCheckEnabled) return;
-            
-            setTimeout(() => {
-                if (navigator.onLine && autoCheckEnabled) {
-                    fetch('/', { 
-                        method: 'HEAD', 
-                        cache: 'no-cache',
-                        signal: AbortSignal.timeout(5000) // timeout de 5s
-                    })
-                        .then(response => {
-                            if (response.ok) {
-                                autoCheckEnabled = false; // Para os checks
-                                window.location.href = '/';
-                            }
-                        })
-                        .catch(() => {
-                            // Ainda offline, continua tentando
-                            if (autoCheckEnabled) {
-                                startAutoCheck();
-                            }
-                        });
-                } else if (autoCheckEnabled) {
-                    startAutoCheck();
-                }
-            }, 120000); // 2 minutos
-        }
-        
-        // Inicia auto-check
-        startAutoCheck();
+        // SEM auto-check / polling - só redireciona quando o evento 'online' disparar
     </script>
 </body>
 </html>

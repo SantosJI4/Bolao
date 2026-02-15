@@ -843,140 +843,75 @@ def manifest(request):
 
 
 def service_worker(request):
-    """Serve um service worker inteligente para PWA com página offline personalizada"""
-    # Service worker otimizado para PWA - cache apenas assets estáticos + página offline
+    """Serve um service worker minimalista para PWA"""
     smart_sw = """
-// Service Worker inteligente - cache assets + página offline personalizada
-const CACHE_NAME = 'futamigo-static-v2';
+// Service Worker minimalista - FutAmigo v3
+// Apenas intercepta quando OFFLINE para mostrar página offline
+const CACHE_NAME = 'futamigo-v3';
 const OFFLINE_URL = '/offline/';
-const STATIC_RESOURCES = [
-    '/static/',
-    '/media/',
-    '/manifest.json',
-    OFFLINE_URL  // Cacheia a página offline
-];
-
-// URLs que NUNCA devem ser cacheadas (páginas dinâmicas)
-const NEVER_CACHE = [
-    '/',
-    '/login/',
-    '/logout/',
-    '/classificacao/',
-    '/rodada/',
-    '/api/',
-    '/admin/',
-    '/offline/'  // Não cachear a própria página offline como resposta
-];
 
 self.addEventListener('install', function(event) {
-    console.log('SW: Instalando service worker inteligente com página offline');
-    
-    event.waitUntil(
-        caches.open(CACHE_NAME).then(function(cache) {
-            // Cacheia a página offline imediatamente
-            return cache.add(OFFLINE_URL);
-        }).then(() => {
-            // Ativo imediatamente sem esperar
-            return self.skipWaiting();
-        })
-    );
+    // Instala sem fazer nenhuma requisição extra ao servidor
+    // A página offline será cacheada na primeira oportunidade
+    self.skipWaiting();
 });
 
 self.addEventListener('activate', function(event) {
-    console.log('SW: Ativando service worker');
     event.waitUntil(
-        // Limpa caches antigos se houver
         caches.keys().then(function(cacheNames) {
             return Promise.all(
                 cacheNames.map(function(cacheName) {
                     if (cacheName !== CACHE_NAME) {
-                        console.log('SW: Removendo cache antigo:', cacheName);
                         return caches.delete(cacheName);
                     }
                 })
             );
-        }).then(() => {
-            // Controla todas as abas abertas imediatamente
-            return self.clients.claim();
-        })
+        }).then(() => self.clients.claim())
     );
 });
 
 self.addEventListener('fetch', function(event) {
-    const requestURL = new URL(event.request.url);
-    
-    // Se está tentando acessar a página offline, serve do cache
-    if (requestURL.pathname === OFFLINE_URL) {
-        event.respondWith(
-            caches.open(CACHE_NAME).then(cache => {
-                return cache.match(OFFLINE_URL);
-            })
-        );
+    // Só intercepta requisições de navegação (páginas HTML)
+    if (event.request.mode !== 'navigate') {
         return;
     }
     
-    // Verifica se é uma URL que nunca deve ser cacheada
-    const shouldNotCache = NEVER_CACHE.some(path => 
-        requestURL.pathname.startsWith(path)
-    );
-    
-    if (shouldNotCache) {
-        // Para páginas dinâmicas: sempre busca na rede (sem cache)
-        event.respondWith(
-            fetch(event.request).catch(() => {
-                // Se offline, serve a página offline personalizada
-                return caches.open(CACHE_NAME).then(cache => {
-                    return cache.match(OFFLINE_URL);
-                });
-            })
-        );
+    // Não interceptar a própria página offline
+    const url = new URL(event.request.url);
+    if (url.pathname === '/offline/') {
         return;
     }
     
-    // Para arquivos estáticos: cache first
-    if (STATIC_RESOURCES.some(path => requestURL.pathname.includes(path))) {
-        event.respondWith(
-            caches.open(CACHE_NAME).then(function(cache) {
-                return cache.match(event.request).then(function(response) {
-                    if (response) {
-                        // Retorna do cache se disponível
-                        return response;
-                    }
-                    // Se não está no cache, busca na rede e cacheia
-                    return fetch(event.request).then(function(networkResponse) {
-                        if (networkResponse.ok) {
-                            cache.put(event.request, networkResponse.clone());
+    event.respondWith(
+        fetch(event.request).then(function(response) {
+            // Sucesso na rede - cacheia a página offline em background
+            // (só uma vez, silenciosamente)
+            if (response.ok) {
+                caches.open(CACHE_NAME).then(function(cache) {
+                    cache.match(OFFLINE_URL).then(function(cached) {
+                        if (!cached) {
+                            cache.add(OFFLINE_URL).catch(function() {});
                         }
-                        return networkResponse;
-                    }).catch(() => {
-                        // Se é um arquivo estático e está offline, tenta alternativas
-                        if (requestURL.pathname.includes('.css')) {
-                            return new Response('/* Arquivo CSS offline */', { 
-                                headers: { 'Content-Type': 'text/css' } 
-                            });
-                        }
-                        if (requestURL.pathname.includes('.js')) {
-                            return new Response('// Arquivo JS offline', { 
-                                headers: { 'Content-Type': 'application/javascript' } 
-                            });
-                        }
-                        return response;
                     });
                 });
-            })
-        );
-        return;
-    }
-    
-    // Para todo o resto: network first com fallback para offline
-    event.respondWith(
-        fetch(event.request).catch(() => {
-            // Se falhar e for uma requisição de navegação, serve página offline
-            if (event.request.mode === 'navigate') {
-                return caches.open(CACHE_NAME).then(cache => {
-                    return cache.match(OFFLINE_URL);
-                });
             }
+            return response;
+        }).catch(function() {
+            // Sem internet - mostra página offline do cache
+            return caches.open(CACHE_NAME).then(function(cache) {
+                return cache.match(OFFLINE_URL);
+            }).then(function(cachedResponse) {
+                if (cachedResponse) {
+                    return cachedResponse;
+                }
+                // Se nem o cache tem, retorna uma resposta básica
+                return new Response(
+                    '<html><body style="text-align:center;padding:50px;font-family:sans-serif">' +
+                    '<h1>FutAmigo</h1><p>Você está sem internet.</p>' +
+                    '<button onclick="location.reload()">Tentar novamente</button></body></html>',
+                    { headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+                );
+            });
         })
     );
 });

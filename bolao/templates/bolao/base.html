@@ -761,38 +761,17 @@
     });
     </script>
     
-    <!-- Service Worker Registration - Inteligente para PWA -->
+    <!-- Service Worker Registration - Minimalista para PWA -->
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', function() {
-                // Primeiro desregistra SWs antigos problemáticos
-                navigator.serviceWorker.getRegistrations().then(function(registrations) {
-                    const oldregistrations = registrations.filter(reg => 
-                        reg.scope.includes('futamigo') && !reg.scope.includes('static')
-                    );
-                    
-                    Promise.all(oldregistrations.map(reg => reg.unregister())).then(() => {
-                        // Registra o novo SW inteligente
-                        navigator.serviceWorker.register('{% url "service_worker" %}')
-                            .then(function(registration) {
-                                console.log('SW: Service Worker inteligente registrado com sucesso');
-                                
-                                // Verificar se há atualizações
-                                registration.addEventListener('updatefound', () => {
-                                    const newWorker = registration.installing;
-                                    newWorker.addEventListener('statechange', () => {
-                                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                            console.log('SW: Nova versão disponível - recarregando...');
-                                            window.location.reload();
-                                        }
-                                    });
-                                });
-                            })
-                            .catch(function(err) {
-                                console.log('SW: Falha ao registrar Service Worker:', err);
-                            });
+                navigator.serviceWorker.register('{% url "service_worker" %}', { scope: '/' })
+                    .then(function(registration) {
+                        console.log('SW: Registrado com sucesso');
+                    })
+                    .catch(function(err) {
+                        console.log('SW: Falha ao registrar:', err);
                     });
-                });
             });
         }
     </script>
