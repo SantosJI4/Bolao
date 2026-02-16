@@ -5,104 +5,371 @@
 
 {% block extrahead %}
 {{ block.super }}
+<!-- Polyfill para interpolate/gettext - Cloudflare Rocket Loader quebra a ordem dos scripts Django -->
+<script data-cfasync="false">
+if(typeof interpolate==='undefined'){window.interpolate=function(fmt,obj,named){if(named){return fmt.replace(/%\(\w+\)s/g,function(m){return String(obj[m.slice(2,-2)])})}else{var i=0;return fmt.replace(/%s/g,function(){return String(obj[i++])})}}}
+if(typeof gettext==='undefined'){window.gettext=function(s){return s}}
+if(typeof ngettext==='undefined'){window.ngettext=function(s,p,n){return n===1?s:p}}
+if(typeof pgettext==='undefined'){window.pgettext=function(ctx,s){return s}}
+</script>
 {{ form.media }}
 <style>
+    /* ===== Layout Principal ===== */
     .notification-panel {
         display: grid;
         grid-template-columns: 1fr 380px;
-        gap: 20px;
+        gap: 28px;
         align-items: start;
     }
-    @media (max-width: 900px) {
+    @media (max-width: 960px) {
         .notification-panel { grid-template-columns: 1fr; }
+        .phone-preview { order: -1; }
     }
+
+    /* ===== Stats Cards ===== */
+    .stats-row {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 14px;
+        margin-bottom: 24px;
+    }
+    @media (max-width: 700px) {
+        .stats-row { grid-template-columns: repeat(2, 1fr); }
+    }
+    .stat-card {
+        color: white;
+        padding: 18px 14px;
+        border-radius: 14px;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .stat-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+    }
+    .stat-card::after {
+        content: '';
+        position: absolute;
+        top: -50%;
+        right: -30%;
+        width: 100px;
+        height: 100px;
+        background: rgba(255,255,255,0.08);
+        border-radius: 50%;
+    }
+    .stat-card.purple { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+    .stat-card.green  { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); }
+    .stat-card.orange { background: linear-gradient(135deg, #f7971e 0%, #ffd200 100%); }
+    .stat-card.red    { background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%); }
+    .stat-number { font-size: 32px; font-weight: 800; display: block; line-height: 1; margin-bottom: 4px; }
+    .stat-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.9; font-weight: 600; }
+
+    /* ===== Fieldsets melhorados ===== */
+    fieldset.module {
+        border: 1px solid var(--hairline-color, #ddd);
+        border-radius: 12px;
+        overflow: hidden;
+        margin-bottom: 16px;
+    }
+    fieldset.module h2 {
+        background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+        color: #fff;
+        padding: 12px 18px;
+        font-size: 14px;
+        letter-spacing: 0.3px;
+        margin: 0;
+    }
+    fieldset.module .form-row {
+        padding: 10px 18px;
+        border-bottom: 1px solid var(--hairline-color, #eee);
+    }
+    fieldset.module .form-row:last-child { border-bottom: none; }
+
+    /* ===== Inputs ===== */
+    #content input[type="text"],
+    #content input[type="url"],
+    #content select,
+    #content textarea {
+        width: 100%;
+        padding: 10px 14px;
+        border: 2px solid var(--border-color, #ddd);
+        border-radius: 8px;
+        font-size: 14px;
+        transition: border-color 0.2s, box-shadow 0.2s;
+        box-sizing: border-box;
+        background: var(--body-bg, #fff);
+        color: var(--body-fg, #333);
+    }
+    #content input[type="text"]:focus,
+    #content input[type="url"]:focus,
+    #content select:focus,
+    #content textarea:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102,126,234,0.15);
+        outline: none;
+    }
+
+    /* ===== Phone Preview ===== */
     .phone-preview { position: sticky; top: 80px; }
+    .phone-preview-title {
+        text-align: center;
+        color: var(--body-quiet-color, #666);
+        margin-bottom: 12px;
+        font-size: 14px;
+        font-weight: 600;
+    }
     .phone-frame {
-        background: #1a1a2e;
-        border-radius: 30px;
-        padding: 15px;
-        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-        max-width: 360px;
+        background: linear-gradient(145deg, #0f0f1a 0%, #1a1a2e 50%, #0f0f1a 100%);
+        border-radius: 36px;
+        padding: 12px;
+        box-shadow: 0 25px 60px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.05);
+        max-width: 340px;
         margin: 0 auto;
+        border: 2px solid #2a2a3e;
+    }
+    .phone-notch {
+        width: 120px;
+        height: 28px;
+        background: #0f0f1a;
+        border-radius: 0 0 18px 18px;
+        margin: 0 auto 12px;
+        position: relative;
+    }
+    .phone-notch::after {
+        content: '';
+        width: 10px;
+        height: 10px;
+        background: #1e1e3a;
+        border-radius: 50%;
+        position: absolute;
+        right: 25px;
+        top: 8px;
+        box-shadow: inset 0 0 3px rgba(102,126,234,0.5);
     }
     .phone-screen {
-        background: #16213e;
-        border-radius: 20px;
+        background: linear-gradient(180deg, #0e1628 0%, #162447 100%);
+        border-radius: 24px;
         overflow: hidden;
-        padding: 20px 15px;
-        min-height: 200px;
+        padding: 0 14px 20px;
+        min-height: 280px;
     }
     .phone-statusbar {
         display: flex;
         justify-content: space-between;
+        align-items: center;
         color: #fff;
-        font-size: 11px;
-        padding: 5px 5px 15px;
-        opacity: 0.7;
+        font-size: 12px;
+        padding: 10px 4px 16px;
+        font-weight: 500;
     }
+    .phone-statusbar-icons { display: flex; gap: 4px; align-items: center; }
+    .phone-statusbar-icons span { font-size: 10px; }
     .notif-card {
-        background: rgba(255,255,255,0.95);
-        border-radius: 14px;
-        padding: 14px;
-        margin-bottom: 10px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.15);
-        animation: slideIn 0.3s ease;
+        background: rgba(255,255,255,0.97);
+        border-radius: 16px;
+        padding: 14px 16px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+        animation: notifSlide 0.4s cubic-bezier(.175,.885,.32,1.275);
     }
-    @keyframes slideIn {
-        from { transform: translateY(-10px); opacity: 0; }
-        to { transform: translateY(0); opacity: 1; }
+    @keyframes notifSlide {
+        from { transform: translateY(-15px) scale(0.96); opacity: 0; }
+        to { transform: translateY(0) scale(1); opacity: 1; }
     }
     .notif-header {
         display: flex;
         align-items: center;
         gap: 10px;
-        margin-bottom: 8px;
+        margin-bottom: 10px;
     }
     .notif-icon {
-        width: 36px;
-        height: 36px;
-        border-radius: 8px;
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
         object-fit: cover;
         flex-shrink: 0;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
-    .notif-app-name { font-size: 12px; color: #666; font-weight: 600; }
-    .notif-time { font-size: 11px; color: #999; margin-left: auto; }
-    .notif-title { font-weight: 700; font-size: 14px; color: #111; margin-bottom: 4px; word-break: break-word; }
-    .notif-body { font-size: 13px; color: #444; line-height: 1.4; word-break: break-word; }
-    .stats-row {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    .notif-app-name { font-size: 13px; color: #555; font-weight: 700; }
+    .notif-time { font-size: 11px; color: #aaa; margin-left: auto; font-weight: 500; }
+    .notif-title {
+        font-weight: 800;
+        font-size: 14px;
+        color: #111;
+        margin-bottom: 5px;
+        word-break: break-word;
+        line-height: 1.3;
+    }
+    .notif-body {
+        font-size: 13px;
+        color: #555;
+        line-height: 1.5;
+        word-break: break-word;
+    }
+    .phone-icon-badge {
+        text-align: center;
+        margin-top: 35px;
+        opacity: 0.35;
+        transition: opacity 0.3s;
+    }
+    .phone-icon-badge:hover { opacity: 0.6; }
+    .phone-icon-badge img {
+        width: 48px;
+        border-radius: 14px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    }
+    .phone-icon-badge p {
+        color: #8892b0;
+        font-size: 10px;
+        margin-top: 6px;
+        letter-spacing: 0.5px;
+    }
+
+    /* ===== Templates Rápidos ===== */
+    .templates-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 14px 18px;
+    }
+    .template-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 8px 16px;
+        border: 2px solid var(--border-color, #ddd);
+        border-radius: 24px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        background: var(--body-bg, #fff);
+        color: var(--body-fg, #333);
+        transition: all 0.25s;
+        user-select: none;
+    }
+    .template-btn:hover {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: #fff;
+        border-color: #667eea;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(102,126,234,0.3);
+    }
+    .template-btn:active { transform: translateY(0); }
+
+    /* ===== Emoji Bar ===== */
+    .emoji-bar {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin: 8px 0;
+    }
+    .emoji-btn {
+        font-size: 22px;
+        cursor: pointer;
+        border: 2px solid transparent;
+        border-radius: 10px;
+        padding: 5px 8px;
+        background: var(--darkened-bg, #f5f5f5);
+        transition: all 0.2s;
+        line-height: 1;
+        user-select: none;
+    }
+    .emoji-btn:hover {
+        border-color: #667eea;
+        transform: scale(1.2) translateY(-2px);
+        background: rgba(102,126,234,0.1);
+        box-shadow: 0 4px 10px rgba(102,126,234,0.2);
+    }
+    .emoji-btn:active { transform: scale(0.95); }
+
+    /* ===== Info boxes ===== */
+    .destinatarios-info {
+        background: linear-gradient(135deg, rgba(255,243,205,0.8), rgba(255,234,167,0.5));
+        border: 1px solid #ffeaa7;
+        padding: 12px 16px;
+        border-radius: 10px;
+        margin: 12px 0;
+        font-size: 13px;
+    }
+    .error-box {
+        background: linear-gradient(135deg, rgba(255,224,224,0.9), rgba(255,200,200,0.7));
+        border: 1px solid #fc8181;
+        padding: 14px 18px;
+        border-radius: 10px;
+        margin-bottom: 16px;
+        color: #c53030;
+        font-weight: 500;
+    }
+
+    /* ===== Botão Enviar ===== */
+    .submit-row {
+        padding: 16px 0 !important;
+        display: flex;
+        align-items: center;
         gap: 12px;
+    }
+    .submit-row input[type="submit"].default {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        color: #fff;
+        font-size: 15px;
+        font-weight: 700;
+        padding: 12px 36px;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: all 0.3s;
+        box-shadow: 0 4px 15px rgba(102,126,234,0.3);
+        letter-spacing: 0.3px;
+    }
+    .submit-row input[type="submit"].default:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 25px rgba(102,126,234,0.45);
+    }
+    .submit-row a {
+        color: var(--body-quiet-color, #666);
+        text-decoration: none;
+        padding: 12px 20px;
+        border-radius: 10px;
+        font-size: 13px;
+        transition: background 0.2s;
+    }
+    .submit-row a:hover { background: var(--darkened-bg, #eee); }
+
+    /* ===== Título Contador ===== */
+    .char-counter {
+        font-size: 12px;
+        color: var(--body-quiet-color, #888);
+        margin-top: 4px;
+    }
+    .char-counter strong { transition: color 0.2s; }
+    .char-counter.warn strong { color: #f39c12; }
+    .char-counter.danger strong { color: #e74c3c; font-size: 13px; }
+
+    /* ===== Page title ===== */
+    .page-title {
+        font-size: 22px;
+        font-weight: 800;
+        margin-bottom: 4px;
+        color: var(--body-fg, #333);
+    }
+    .page-subtitle {
+        font-size: 14px;
+        color: var(--body-quiet-color, #666);
         margin-bottom: 20px;
     }
-    .stat-card {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 15px;
-        border-radius: 10px;
-        text-align: center;
+
+    /* ===== Checkbox styled ===== */
+    #content input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        accent-color: #667eea;
+        vertical-align: middle;
+        margin-right: 6px;
     }
-    .stat-card.green { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); }
-    .stat-card.orange { background: linear-gradient(135deg, #F2994A 0%, #F2C94C 100%); }
-    .stat-card.red { background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); }
-    .stat-number { font-size: 28px; font-weight: 700; display: block; }
-    .stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.9; }
-    .emoji-bar { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
-    .emoji-btn {
-        font-size: 20px; cursor: pointer; border: 2px solid transparent;
-        border-radius: 8px; padding: 4px 8px; background: #f0f0f0; transition: all 0.2s;
-    }
-    .emoji-btn:hover { border-color: #667eea; transform: scale(1.15); background: #e0e0ff; }
-    .template-btn {
-        display: inline-block; padding: 6px 14px; margin: 4px;
-        border: 1px solid #ccc; border-radius: 20px; font-size: 12px;
-        cursor: pointer; background: #fff; transition: all 0.2s;
-    }
-    .template-btn:hover { background: #667eea; color: white; border-color: #667eea; }
-    .destinatarios-info {
-        background: #fff3cd; border: 1px solid #ffeaa7;
-        padding: 12px 15px; border-radius: 8px; margin: 10px 0;
-    }
+
+    /* ===== Smooth transitions globais ===== */
+    *, *::before, *::after { box-sizing: border-box; }
 </style>
 {% endblock %}
 
@@ -110,7 +377,7 @@
 <div class="content-main">
     <!-- Stats -->
     <div class="stats-row">
-        <div class="stat-card">
+        <div class="stat-card purple">
             <span class="stat-number">{{ total_participantes }}</span>
             <span class="stat-label">Total Participantes</span>
         </div>
@@ -134,10 +401,10 @@
         <div class="notification-panel">
             <!-- Coluna esquerda: formulário -->
             <div>
-                <h1>{{ title }}</h1>
+                <h1 class="page-title">{{ title }}</h1>
                 
                 {% if subtitle %}
-                <p style="font-size: 15px; color: #666; margin-bottom: 20px;">{{ subtitle }}</p>
+                <p class="page-subtitle">{{ subtitle }}</p>
                 {% endif %}
                 
                 {% if participantes_count > 0 %}
@@ -147,7 +414,7 @@
                 {% endif %}
                 
                 {% if form.errors %}
-                <div style="background: #ffe0e0; border: 1px solid #e74c3c; padding: 12px; border-radius: 8px; margin-bottom: 15px;">
+                <div class="error-box">
                     <strong>⚠️ Corrija os erros abaixo:</strong>
                     {{ form.non_field_errors }}
                 </div>
@@ -156,7 +423,7 @@
                 <!-- Templates rápidos -->
                 <fieldset class="module">
                     <h2>⚡ Templates Rápidos</h2>
-                    <div style="padding: 10px;">
+                    <div class="templates-grid">
                         <div class="template-btn" onclick="applyTemplate('rodada')">🆕 Nova Rodada</div>
                         <div class="template-btn" onclick="applyTemplate('lembrete')">⏰ Lembrete Prazo</div>
                         <div class="template-btn" onclick="applyTemplate('resultados')">📊 Resultados</div>
@@ -180,7 +447,7 @@
                         <div>
                             <label for="{{ form.titulo.id_for_label }}" class="required">Título:</label>
                             {{ form.titulo }}
-                            <p class="help">Máx 100 caracteres. <strong id="titulo-count">0</strong>/100</p>
+                            <p class="char-counter" id="titulo-counter">Máx 100 caracteres. <strong id="titulo-count">0</strong>/100</p>
                             {% for error in form.titulo.errors %}<ul class="errorlist"><li>{{ error }}</li></ul>{% endfor %}
                         </div>
                     </div>
@@ -264,20 +531,24 @@
                 </fieldset>
 
                 <div class="submit-row">
-                    <input type="submit" value="🚀 Enviar Notificação" class="default" style="font-size: 15px; padding: 10px 30px;" />
-                    <a href="/admin/bolao/notification/" style="padding: 10px 20px; margin-left: 10px;">Cancelar</a>
+                    <input type="submit" value="🚀 Enviar Notificação" class="default" />
+                    <a href="/admin/bolao/notification/">Cancelar</a>
                 </div>
             </div>
 
             <!-- Coluna direita: preview estilo celular -->
             <div class="phone-preview">
-                <h3 style="text-align: center; color: #666; margin-bottom: 10px;">📱 Preview da Notificação</h3>
+                <p class="phone-preview-title">📱 Preview da Notificação</p>
                 <div class="phone-frame">
+                    <div class="phone-notch"></div>
                     <div class="phone-screen">
                         <div class="phone-statusbar">
                             <span>9:41</span>
-                            <span>FutAmigo</span>
-                            <span>📶 🔋</span>
+                            <span style="font-weight:700;">FutAmigo</span>
+                            <div class="phone-statusbar-icons">
+                                <span>📶</span>
+                                <span>🔋</span>
+                            </div>
                         </div>
                         
                         <div class="notif-card" id="notif-preview">
@@ -292,9 +563,9 @@
                             <div class="notif-body" id="preview-body">Mensagem da notificação aparecerá aqui...</div>
                         </div>
 
-                        <div style="text-align: center; margin-top: 30px; opacity: 0.4;">
-                            <img src="{% static 'futfavi.webp' %}" alt="" style="width: 50px; border-radius: 12px;">
-                            <p style="color: #fff; font-size: 11px; margin-top: 8px;">Ícone usado nas notificações</p>
+                        <div class="phone-icon-badge">
+                            <img src="{% static 'futfavi.webp' %}" alt="">
+                            <p>Ícone usado nas notificações</p>
                         </div>
                     </div>
                 </div>
@@ -303,13 +574,14 @@
     </form>
 </div>
 
-<script>
+<script data-cfasync="false">
 document.addEventListener('DOMContentLoaded', function() {
     const tituloInput = document.getElementById('{{ form.titulo.id_for_label }}');
     const mensagemInput = document.getElementById('{{ form.mensagem.id_for_label }}');
     const previewTitle = document.getElementById('preview-title');
     const previewBody = document.getElementById('preview-body');
     const tituloCount = document.getElementById('titulo-count');
+    const tituloCounter = document.getElementById('titulo-counter');
     const destinatariosSelect = document.getElementById('{{ form.destinatarios.id_for_label }}');
     const participantesDiv = document.getElementById('participantes_especificos');
     const destinatariosDesc = document.getElementById('destinatarios-desc');
@@ -322,18 +594,30 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 
     function updatePreview() {
-        previewTitle.textContent = tituloInput.value || '⚽ Título da notificação';
-        previewBody.textContent = mensagemInput.value || 'Mensagem da notificação aparecerá aqui...';
-        tituloCount.textContent = tituloInput.value.length;
-        tituloCount.style.color = tituloInput.value.length > 80 ? '#e74c3c' : '#333';
+        const title = tituloInput.value;
+        const body = mensagemInput.value;
+        previewTitle.textContent = title || '⚽ Título da notificação';
+        previewBody.textContent = body || 'Mensagem da notificação aparecerá aqui...';
+        
+        // Counter com classes de alerta
+        const len = title.length;
+        tituloCount.textContent = len;
+        tituloCounter.className = 'char-counter' + (len > 90 ? ' danger' : len > 70 ? ' warn' : '');
+        
+        // Animate preview card on change
+        const card = document.getElementById('notif-preview');
+        card.style.animation = 'none';
+        void card.offsetHeight;
+        card.style.animation = 'notifSlide 0.3s ease';
     }
 
     tituloInput.addEventListener('input', updatePreview);
     mensagemInput.addEventListener('input', updatePreview);
 
     function toggleParticipantes() {
-        participantesDiv.style.display = destinatariosSelect.value === 'selecionados' ? 'block' : 'none';
-        destinatariosDesc.textContent = descMap[destinatariosSelect.value] || '';
+        const val = destinatariosSelect.value;
+        participantesDiv.style.display = val === 'selecionados' ? 'block' : 'none';
+        destinatariosDesc.textContent = descMap[val] || '';
     }
 
     destinatariosSelect.addEventListener('change', toggleParticipantes);
