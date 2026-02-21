@@ -293,3 +293,27 @@ ENABLE_PERFORMANCE_MONITORING = DEBUG
 # Square Cloud / Production settings
 import os
 PORT = int(os.environ.get('PORT', 80))
+
+# ===============================================
+# CONFIGURAÇÕES PARA NOTIFICAÇÕES PUSH
+# ===============================================
+
+# Chaves VAPID para Web Push Notifications
+# Em produção, estas devem ser definidas como variáveis de ambiente
+WEBPUSH_SETTINGS = {
+    "VAPID_PUBLIC_KEY": os.environ.get(
+        "VAPID_PUBLIC_KEY",
+        "BKumVCNnZKHNR6xB7q2QdI1RGKokC9wAKwU9W8CZJqXU5P8QZOyLYNWB64qQ95fTzwWZhZhE2FzCE8D89-TBJwA"
+    ),
+    "VAPID_PRIVATE_KEY": os.environ.get(
+        "VAPID_PRIVATE_KEY", 
+        "k6rta4Y8h4YHbVqSZYb3P7XYsqL3FqG4N8Lj7U1V9qkL"
+    ),
+    "VAPID_ADMIN_EMAIL": os.environ.get(
+        "VAPID_ADMIN_EMAIL", 
+        "admin@futamigo.com"
+    )
+}
+
+# TTL para notificações push (em segundos)
+WEBPUSH_TTL = 60 * 60 * 24  # 24 horas

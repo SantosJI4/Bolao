@@ -261,19 +261,16 @@ class Classificacao(models.Model):
             pontos_totais = sum(palpite.pontos_obtidos for palpite in palpites_finalizados)
             acertos_totais = sum(1 for palpite in palpites_finalizados if palpite.acertou)
             
-            # Calcula saldo da última rodada (pontos ganhos menos pontos perdidos)
+            # Calcula saldo da última rodada (pontos ganhos na última rodada)
             ultimo_saldo = 0
             if ultima_rodada:
+                # Pontos da última rodada
                 palpites_ultima_rodada = Palpite.objects.filter(
                     participante=participante,
                     jogo__rodada=ultima_rodada,
                     jogo__resultado_finalizado=True
                 )
-                pontos_ultima_rodada = sum(palpite.pontos_obtidos for palpite in palpites_ultima_rodada)
-                total_jogos_ultima_rodada = palpites_ultima_rodada.count()
-                # Saldo = pontos ganhos - pontos que podia ter ganho
-                ultimo_saldo = pontos_ultima_rodada - (total_jogos_ultima_rodada * 0)  # Simplificado: pontos ganhos
-                ultimo_saldo = pontos_ultima_rodada  # Por enquanto, só os pontos da última rodada
+                ultimo_saldo = sum(palpite.pontos_obtidos for palpite in palpites_ultima_rodada)
             
             classificacao_data.append({
                 'participante': participante,
@@ -505,6 +502,7 @@ class Notification(models.Model):
     # Timestamps
     criada_em = models.DateTimeField(auto_now_add=True)
     enviada_em = models.DateTimeField(null=True, blank=True)
+    vista_em = models.DateTimeField(null=True, blank=True, help_text='Quando a notificação foi vista pelo usuário')
     clicada_em = models.DateTimeField(null=True, blank=True)
     
     # Dados técnicos

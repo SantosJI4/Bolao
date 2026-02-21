@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% if user.is_authenticated %}
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    {% endif %}
     <title>{% block title %}FutAmigo{% endblock %}</title>
     {% load static %}
     
@@ -761,6 +764,42 @@
     });
     </script>
     
+    <!-- Modal de Ativação de Notificações -->
+    {% if user.is_authenticated %}
+    <div class="modal fade" id="notificationModal" tabindex="-1" aria-labelledby="notificationModalLabel" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header border-0 pb-0">
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body text-center px-4 pb-4">
+                    <div class="mb-3">
+                        <i class="fas fa-bell fa-3x text-warning mb-3"></i>
+                        <h4 class="modal-title fw-bold" id="notificationModalLabel">🚀 Active as Notificações!</h4>
+                    </div>
+                    <p class="text-muted mb-3">
+                        Receba alertas instantâneos sobre:
+                    </p>
+                    <ul class="list-unstyled mb-4">
+                        <li class="mb-2">⚽ <strong>Novas rodadas</strong> liberadas</li>
+                        <li class="mb-2">🏆 <strong>Resultados</strong> publicados</li>
+                        <li class="mb-2">⏰ <strong>Lembretes</strong> de prazo</li>
+                        <li class="mb-2">📊 <strong>Ranking</strong> atualizado</li>
+                    </ul>
+                    <div class="d-grid gap-2">
+                        <button type="button" class="btn btn-warning btn-lg fw-bold" id="activateNotifications">
+                            <i class="fas fa-bell me-2"></i>Ativar Notificações
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" id="laterButton">
+                            Depois
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Service Worker Registration - Minimalista para PWA -->
     <script>
         if ('serviceWorker' in navigator) {
@@ -775,6 +814,122 @@
             });
         }
     </script>
+    
+    <!-- Sistema de Notificações em Tempo Real -->
+    {% if user.is_authenticated %}
+    <script src="{% static 'notification-checker.js' %}"></script>
+    
+    <!-- Modal de Ativação de Notificações -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Verificar se deve mostrar o modal de notificações
+            checkNotificationModal();
+            
+            // Configurar eventos do modal
+            setupNotificationModal();
+        });
+
+        function checkNotificationModal() {
+            // Não mostrar se já foi rejeitado nesta sessão
+            if (sessionStorage.getItem('notificationModalDismissed') === 'true') {
+                return;
+            }
+            
+            // Não mostrar se já foi ativado permanentemente
+            if (localStorage.getItem('notificationsActivated') === 'true') {
+                return;
+            }
+            
+            // Verificar permissões do navegador
+            if ('Notification' in window) {
+                if (Notification.permission === 'granted') {
+                    // Verificar se está habilitado nas configurações do usuário
+                    fetch('/api/notification-settings/')
+                        .then(response => response.json())
+                        .then(data => {
+                            if (!data.enabled) {
+                                showNotificationModal();
+                            }
+                        })
+                        .catch(() => {
+                            // Em caso de erro, mostrar o modal
+                            showNotificationModal();
+                        });
+                } else if (Notification.permission === 'default') {
+                    // Mostrar modal se permissão ainda não foi solicitada
+                    setTimeout(showNotificationModal, 2000); // Delay de 2s
+                }
+            }
+        }
+        
+        function showNotificationModal() {
+            const modal = new bootstrap.Modal(document.getElementById('notificationModal'));
+            modal.show();
+        }
+        
+        function setupNotificationModal() {
+            const activateBtn = document.getElementById('activateNotifications');
+            const laterBtn = document.getElementById('laterButton');
+            const modal = document.getElementById('notificationModal');
+            
+            // Botão Ativar
+            activateBtn.addEventListener('click', async function() {
+                this.disabled = true;
+                this.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Ativando...';
+                
+                try {
+                    // Solicitar permissão do navegador
+                    if ('Notification' in window && Notification.permission === 'default') {
+                        const permission = await Notification.requestPermission();
+                        if (permission !== 'granted') {
+                            throw new Error('Permissão negada');
+                        }
+                    }
+                    
+                    // Ativar nas configurações do usuário
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+                    const response = await fetch('/api/enable-all-notifications/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': csrfToken
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        localStorage.setItem('notificationsActivated', 'true');
+                        this.innerHTML = '<i class="fas fa-check me-2"></i>Ativado!';
+                        this.className = 'btn btn-success btn-lg fw-bold';
+                        
+                        // Fechar modal após 1 segundo
+                        setTimeout(() => {
+                            bootstrap.Modal.getInstance(modal).hide();
+                        }, 1000);
+                    } else {
+                        throw new Error('Erro do servidor');
+                    }
+                } catch (error) {
+                    console.error('Erro ao ativar notificações:', error);
+                    this.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>Erro - Tente novamente';
+                    this.className = 'btn btn-danger btn-lg fw-bold';
+                    this.disabled = false;
+                }
+            });
+            
+            // Botão Depois
+            laterBtn.addEventListener('click', function() {
+                sessionStorage.setItem('notificationModalDismissed', 'true');
+            });
+            
+            // Fechar manual
+            modal.addEventListener('hidden.bs.modal', function() {
+                if (!localStorage.getItem('notificationsActivated')) {
+                    sessionStorage.setItem('notificationModalDismissed', 'true');
+                }
+            });
+        }
+    </script>
+    {% endif %}
     
     {% block extra_js %}
     {% endblock %}

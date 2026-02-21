@@ -147,21 +147,35 @@
                 </h5>
             </div>
             <div class="card-body">
-                {% if rodadas_futuras %}
-                    {% for rodada in rodadas_futuras %}
-                    <div class="jogo-item">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <h6 class="mb-1">{{ rodada }}</h6>
-                                <small class="text-muted">
+                {% if rodadas_futuras_info %}
+                    {% for info in rodadas_futuras_info %}
+                    <div class="jogo-item mb-3">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1">
+                                <h6 class="mb-1">{{ info.rodada }}</h6>
+                                <small class="text-muted d-block">
                                     <i class="fas fa-calendar me-1"></i>
-                                    {{ rodada.data_inicio|date:"d/m/Y H:i" }}
+                                    {{ info.rodada.data_inicio|date:"d/m/Y H:i" }}
+                                </small>
+                                <small class="text-info d-block">
+                                    <i class="fas fa-futbol me-1"></i>
+                                    {{ info.status_texto }}
                                 </small>
                             </div>
-                            <span class="badge bg-secondary status-futura">
-                                <i class="fas fa-lock me-1"></i>
-                                Bloqueada
-                            </span>
+                            <div class="text-end">
+                                <span class="badge bg-secondary status-futura">
+                                    <i class="fas fa-lock me-1"></i>
+                                    Bloqueada
+                                </span>
+                                {% if info.dias_restantes <= 3 and info.dias_restantes > 0 %}
+                                    <div class="mt-1">
+                                        <span class="badge bg-warning text-dark">
+                                            <i class="fas fa-bell me-1"></i>
+                                            {{ info.dias_restantes }} dia{{ info.dias_restantes|pluralize }}
+                                        </span>
+                                    </div>
+                                {% endif %}
+                            </div>
                         </div>
                     </div>
                     {% endfor %}
@@ -185,28 +199,74 @@
                 </h5>
             </div>
             <div class="card-body">
-                {% if rodadas_passadas %}
-                    {% for rodada in rodadas_passadas %}
-                    <div class="jogo-item">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <h6 class="mb-1">{{ rodada }}</h6>
-                                <small class="text-muted">
+                {% if rodadas_recentes_info %}
+                    {% for info in rodadas_recentes_info %}
+                    <div class="jogo-item mb-3">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1">
+                                <h6 class="mb-1">{{ info.rodada }}</h6>
+                                <small class="text-muted d-block">
                                     <i class="fas fa-calendar-check me-1"></i>
-                                    {{ rodada.data_fim|date:"d/m/Y" }}
+                                    {{ info.rodada.data_fim|date:"d/m/Y" }}
                                 </small>
+                                
+                                <!-- Informações de progresso -->
+                                <div class="mt-1">
+                                    <small class="text-success d-block">
+                                        <i class="fas fa-check-circle me-1"></i>
+                                        {{ info.jogos_finalizados }}/{{ info.total_jogos }} resultados ({{ info.percentual_finalizado }}%)
+                                    </small>
+                                    
+                                    {% if info.pontuacao_media > 0 %}
+                                    <small class="text-primary d-block">
+                                        <i class="fas fa-chart-line me-1"></i>
+                                        Média: {{ info.pontuacao_media }} pts
+                                    </small>
+                                    {% endif %}
+                                </div>
+                                
+                                <!-- Principais jogos -->
+                                {% if info.principais_jogos %}
+                                <div class="mt-2">
+                                    {% for jogo in info.principais_jogos %}
+                                    <small class="text-dark d-block">
+                                        <i class="fas fa-futbol me-1"></i>
+                                        {{ jogo.time_casa.sigla }} {{ jogo.gols_casa }} x {{ jogo.gols_visitante }} {{ jogo.time_visitante.sigla }}
+                                    </small>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
                             </div>
-                            <a href="{% url 'resultados_rodada' rodada.id %}" class="btn btn-outline-primary btn-sm btn-modern">
-                                <i class="fas fa-eye me-1"></i>
-                                Ver Resultados
-                            </a>
+                            
+                            <div class="text-end">
+                                <a href="{% url 'resultados_rodada' info.rodada.id %}" class="btn btn-outline-primary btn-sm btn-modern">
+                                    <i class="fas fa-eye me-1"></i>
+                                    Ver
+                                </a>
+                                
+                                {% if info.percentual_finalizado == 100 %}
+                                <div class="mt-1">
+                                    <span class="badge bg-success">
+                                        <i class="fas fa-check me-1"></i>
+                                        Completa
+                                    </span>
+                                </div>
+                                {% else %}
+                                <div class="mt-1">
+                                    <span class="badge bg-warning text-dark">
+                                        <i class="fas fa-hourglass-half me-1"></i>
+                                        Parcial
+                                    </span>
+                                </div>
+                                {% endif %}
+                            </div>
                         </div>
                     </div>
                     {% endfor %}
                 {% else %}
                     <p class="text-muted text-center mb-0">
                         <i class="fas fa-info-circle me-1"></i>
-                        Nenhuma rodada finalizada ainda
+                        Nenhum resultado recente
                     </p>
                 {% endif %}
             </div>

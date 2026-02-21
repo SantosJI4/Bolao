@@ -5,7 +5,8 @@ from django.contrib import messages
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_POST
 from django.utils import timezone
-from django.db.models import Q, F
+from django.db.models import Q, F, Avg
+from django.db import models
 from django.conf import settings
 import os
 import json
@@ -13,33 +14,107 @@ from .models import Rodada, Jogo, Palpite, Participante, Classificacao, Time, No
 from .forms import PerfilParticipanteForm
 
 
+@login_required
+def test_notifications_simple(request):
+    """Página simples para testar notificações"""
+    
+    if request.method == 'POST':
+        try:
+            # Criar notificação de teste
+            participante = request.user.participante
+            
+            # Garantir configuração existe
+            settings, created = NotificationSettings.objects.get_or_create(participante=participante)
+            
+            notification = Notification.objects.create(
+                participante=participante,
+                tipo='sistema',
+                titulo='🧪 Teste Simples',
+                mensagem='Esta é uma notificação de teste básica!',
+                url_acao='/',
+            )
+            
+            # Tentar enviar
+            success = send_push_notification(notification)
+            
+            if success:
+                messages.success(request, f'✅ Notificação enviada com sucesso! ID: {notification.id}')
+            else:
+                messages.error(request, f'❌ Falha no envio. Erro: {notification.error_message}')
+                
+        except Exception as e:
+            messages.error(request, f'❌ Erro: {str(e)}')
+    
+    return render(request, 'bolao/test_notifications.html')
+
+
 def home(request):
     """Página inicial mostrando rodadas e status"""
     
-    # Busca rodadas ativas com consulta otimizada
-    rodadas_ativas = Rodada.objects.filter(ativa=True).select_related().order_by('numero')
-    
-    # Rodada atual: otimizada
+    # Busca todas as rodadas para análise completa
     agora = timezone.now()
+    rodadas_ativas = Rodada.objects.filter(ativa=True).select_related().order_by('numero')
+    todas_rodadas = Rodada.objects.all().select_related().order_by('numero')
+    
+    # Rodada atual: primeira ativa no período correto
     rodada_atual = None
+    rodadas_ativas_list = list(rodadas_ativas)
     
-    # Busca mais eficiente
-    rodadas_list = list(rodadas_ativas)
-    
-    # Primeiro tenta pegar uma rodada ativa no período correto
-    for rodada in rodadas_list:
+    # Busca rodada ativa no período correto
+    for rodada in rodadas_ativas_list:
         if rodada.data_inicio <= agora <= rodada.data_fim:
             rodada_atual = rodada
             break
     
-    # Se não achou, pega a próxima ou a última
+    # Se não achou, pega a próxima ativa futura ou a última ativa
     if not rodada_atual:
-        futuras = [r for r in rodadas_list if r.data_inicio > agora]
-        rodada_atual = futuras[0] if futuras else (rodadas_list[-1] if rodadas_list else None)
+        futuras_ativas = [r for r in rodadas_ativas_list if r.data_inicio > agora]
+        rodada_atual = futuras_ativas[0] if futuras_ativas else (rodadas_ativas_list[-1] if rodadas_ativas_list else None)
     
-    # Filtra rodadas usando listas já carregadas
-    rodadas_futuras = [r for r in rodadas_list if r.data_inicio > agora and r != rodada_atual][:3]
-    rodadas_passadas = sorted([r for r in rodadas_list if r.data_fim < agora], key=lambda x: x.numero, reverse=True)[:3]
+    # Buscar todas as rodadas para futuras e passadas (não só ativas)
+    todas_rodadas_list = list(todas_rodadas)
+    rodadas_futuras = [r for r in todas_rodadas_list if r.data_inicio > agora and r != rodada_atual][:3]
+    rodadas_passadas = sorted([r for r in todas_rodadas_list if r.data_fim < agora], key=lambda x: x.numero, reverse=True)[:3]
+    
+    # Adicionar informações detalhadas para rodadas futuras
+    rodadas_futuras_info = []
+    for rodada in rodadas_futuras:
+        jogos_count = rodada.jogo_set.count()
+        dias_restantes = (rodada.data_inicio - agora).days
+        rodadas_futuras_info.append({
+            'rodada': rodada,
+            'jogos_count': jogos_count,
+            'dias_restantes': dias_restantes,
+            'status_texto': f"{jogos_count} jogos" + (f" em {dias_restantes} dias" if dias_restantes > 0 else " hoje")
+        })
+    
+    # Adicionar informações detalhadas para resultados recentes
+    rodadas_recentes_info = []
+    for rodada in rodadas_passadas:
+        jogos_finalizados = rodada.jogo_set.filter(resultado_finalizado=True).count()
+        total_jogos = rodada.jogo_set.count()
+        
+        # Buscar principais resultados
+        principais_jogos = rodada.jogo_set.filter(resultado_finalizado=True).select_related('time_casa', 'time_visitante')[:2]
+        
+        # Calcular pontuação média se houver palpites
+        palpites_rodada = Palpite.objects.filter(jogo__rodada=rodada, jogo__resultado_finalizado=True)
+        # Como pontos_obtidos é uma property, calculamos manualmente
+        total_pontos = 0
+        total_palpites = 0
+        for palpite in palpites_rodada:
+            total_pontos += palpite.pontos_obtidos
+            total_palpites += 1
+        pontuacao_media = total_pontos / total_palpites if total_palpites > 0 else 0
+        
+        rodadas_recentes_info.append({
+            'rodada': rodada,
+            'jogos_finalizados': jogos_finalizados,
+            'total_jogos': total_jogos,
+            'principais_jogos': list(principais_jogos),
+            'pontuacao_media': round(pontuacao_media, 1),
+            'percentual_finalizado': round((jogos_finalizados / total_jogos * 100) if total_jogos > 0 else 0),
+        })
     
     # Participante e atualizações
     participante = None
@@ -70,6 +145,8 @@ def home(request):
         'rodada_atual': rodada_atual,
         'rodadas_futuras': rodadas_futuras,
         'rodadas_passadas': rodadas_passadas,
+        'rodadas_futuras_info': rodadas_futuras_info,
+        'rodadas_recentes_info': rodadas_recentes_info,
         'participante': participante,
         'atualizacao_nao_vista': atualizacao_nao_vista
     }
@@ -1118,21 +1195,114 @@ def test_notification(request):
 
 
 def send_push_notification(notification):
-    """Envia uma notificação push (preparado para implementação futura)"""
+    """Envia uma notificação push (agora com notificação real via JavaScript)"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
     try:
-        # Aqui será implementado o envio real via web-push
-        # Por enquanto, apenas simula o envio
+        # Obter dados de subscrição do participante
+        participante = notification.participante
+        
+        try:
+            notification_settings = participante.notification_settings
+        except NotificationSettings.DoesNotExist:
+            # Criar configuração se não existir
+            notification_settings = NotificationSettings.objects.create(
+                participante=participante,
+                enabled=True
+            )
+        
+        # Marcar como enviada para o sistema
         notification.status = 'sent'
         notification.enviada_em = timezone.now()
+        notification.push_id = f"browser-{notification.id}"
         notification.save()
         
+        # Para notificações reais no navegador, vamos usar uma abordagem diferente
+        # Por enquanto, registrar o envio está funcionando
         return True
-    
+        
     except Exception as e:
+        error_msg = f"Erro: {str(e)}"
         notification.status = 'failed'
-        notification.error_message = str(e)
+        notification.error_message = error_msg
         notification.save()
         return False
+
+
+@login_required
+def get_new_notifications(request):
+    """API para buscar novas notificações para o usuário atual"""
+    try:
+        participante = request.user.participante
+        
+        # Buscar notificações não vistas (mais eficiente que por tempo)
+        novas_notifications = Notification.objects.filter(
+            participante=participante,
+            status='sent',
+            vista_em__isnull=True  # Apenas as que não foram vistas
+        ).order_by('-enviada_em')[:10]
+        
+        notifications_data = []
+        for notif in novas_notifications:
+            notifications_data.append({
+                'id': notif.id,
+                'titulo': notif.titulo,
+                'mensagem': notif.mensagem,
+                'tipo': notif.tipo,
+                'url_acao': notif.url_acao or '/',
+                'enviada_em': notif.enviada_em.isoformat(),
+                'push_id': notif.push_id
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'notifications': notifications_data,
+            'count': len(notifications_data)
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e),
+            'notifications': [],
+            'count': 0
+        })
+
+
+@login_required
+@require_POST
+def mark_notifications_viewed(request):
+    """Marca notificações como vistas"""
+    try:
+        participante = request.user.participante
+        data = json.loads(request.body)
+        notification_ids = data.get('notification_ids', [])
+        
+        if notification_ids:
+            # Marcar notificações específicas como vistas
+            updated = Notification.objects.filter(
+                id__in=notification_ids,
+                participante=participante,
+                vista_em__isnull=True
+            ).update(vista_em=timezone.now())
+        else:
+            # Marcar todas as não vistas como vistas
+            updated = Notification.objects.filter(
+                participante=participante,
+                vista_em__isnull=True
+            ).update(vista_em=timezone.now())
+        
+        return JsonResponse({
+            'success': True,
+            'marked': updated
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        })
 
 
 def send_notification_to_users(tipo, titulo, mensagem, rodada=None, url_acao=''):
@@ -1174,4 +1344,76 @@ def send_notification_to_users(tipo, titulo, mensagem, rodada=None, url_acao='')
         send_push_notification(notification)
     
     return len(notifications_created)
+
+
+@login_required
+def api_notification_settings(request):
+    """API para verificar configurações de notificação do usuário"""
+    try:
+        participante = request.user.participante
+        
+        try:
+            settings = participante.notification_settings
+        except NotificationSettings.DoesNotExist:
+            # Criar configuração padrão se não existir
+            settings = NotificationSettings.objects.create(
+                participante=participante,
+                enabled=False  # Desabilitado por padrão
+            )
+        
+        return JsonResponse({
+            'success': True,
+            'enabled': settings.enabled,
+            'nova_rodada': settings.nova_rodada,
+            'lembrete_prazo': settings.lembrete_prazo,
+            'resultados_publicados': settings.resultados_publicados,
+            'ranking_atualizado': settings.ranking_atualizado
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e),
+            'enabled': False
+        })
+
+
+@login_required
+@require_POST
+def api_enable_all_notifications(request):
+    """API para ativar todas as notificações do usuário"""
+    try:
+        participante = request.user.participante
+        
+        # Obter ou criar configurações
+        settings, created = NotificationSettings.objects.get_or_create(
+            participante=participante,
+            defaults={
+                'enabled': True,
+                'nova_rodada': True,
+                'lembrete_prazo': True,
+                'resultados_publicados': True,
+                'ranking_atualizado': True
+            }
+        )
+        
+        # Se já existia, ativar tudo
+        if not created:
+            settings.enabled = True
+            settings.nova_rodada = True
+            settings.lembrete_prazo = True
+            settings.resultados_publicados = True
+            settings.ranking_atualizado = True
+            settings.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Todas as notificações foram ativadas com sucesso!'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        })
 

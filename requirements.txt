@@ -3,3 +3,4 @@ pillow
 whitenoise
 requests
 user-agents
+pywebpush

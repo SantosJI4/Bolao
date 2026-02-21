@@ -196,6 +196,22 @@
 
 {% block extra_js %}
 <script>
+// Função para converter chave VAPID base64url para Uint8Array
+function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding)
+        .replace(/\-/g, '+')
+        .replace(/_/g, '/');
+    
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    
+    for (let i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+}
+
 // Variáveis globais
 let notificationPermission = 'default';
 let serviceWorkerRegistration = null;
@@ -472,10 +488,13 @@ async function savePushSubscription() {
         if (!subscription) {
             console.log('📝 Criando nova push subscription...');
             
+            // Chave VAPID pública (base64url)
+            const vapidPublicKey = 'BKumVCNnZKHNR6xB7q2QdI1RGKokC9wAKwU9W8CZJqXU5P8QZOyLYNWB64qQ95fTzwWZhZhE2FzCE8D89-TBJwA';
+            
             // Criar nova subscription
             subscription = await serviceWorkerRegistration.pushManager.subscribe({
                 userVisibleOnly: true,
-                applicationServerKey: null // Aqui iria a chave VAPID no futuro
+                applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
             });
         }
         

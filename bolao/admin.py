@@ -10,6 +10,24 @@ from django import forms
 from .models import Time, Participante, Rodada, Jogo, Palpite, Classificacao, AtualizacaoSite, AtualizacaoVista, SessaoVisita, AcaoUsuario, MetricaDiaria, PaginaPopular, NotificationSettings, Notification
 import re
 from django.utils import timezone
+import logging
+
+
+def debug_send_notification(notification):
+    """Função de envio com debug específico para o admin"""
+    try:
+        # Importar a função de envio
+        from .views import send_push_notification
+        
+        # Tentar envio
+        result = send_push_notification(notification)
+        return result
+        
+    except Exception as e:
+        notification.status = 'failed'
+        notification.error_message = f"Erro debug: {str(e)}"
+        notification.save()
+        return False
 
 
 class ResultadosLoteForm(forms.Form):
@@ -660,6 +678,16 @@ class RodadaAdmin(admin.ModelAdmin):
         Rodada.objects.all().update(ativa=False)
         # Ativa a rodada selecionada
         queryset.update(ativa=True)
+        
+        # Enviar notificação de nova rodada
+        for rodada in queryset:
+            from .views import send_notification_to_users
+            titulo = f"🚀 Rodada {rodada.numero} Liberada!"
+            mensagem = f"⚽ A Rodada {rodada.numero} já está aberta para palpites! Não perca o prazo."
+            url_acao = "/palpites/"
+            count = send_notification_to_users('nova_rodada', titulo, mensagem, rodada, url_acao)
+            messages.success(request, f"📱 {count} notificação(ões) de nova rodada enviada(s)!")
+            
         self.message_user(request, f"{queryset.count()} rodada(s) ativada(s)")
     ativar_rodada.short_description = "Ativar rodada selecionada"
     
@@ -812,6 +840,16 @@ class JogoAdmin(admin.ModelAdmin):
         # Atualiza classificação quando um resultado é finalizado
         if obj.resultado_finalizado:
             Classificacao.atualizar_classificacao()
+            
+            # Se é a primeira vez que este jogo está sendo finalizado, enviar notificação
+            if change and form.has_changed() and 'resultado_finalizado' in form.changed_data:
+                from .views import send_notification_to_users
+                titulo = f"⚽ Resultado: {obj.time_casa} {obj.gols_casa} x {obj.gols_visitante} {obj.time_visitante}"
+                mensagem = f"🏆 Resultado atualizado da {obj.rodada}! Classificação foi recalculada."
+                url_acao = "/resultados/"
+                count = send_notification_to_users('resultados', titulo, mensagem, obj.rodada, url_acao)
+                messages.success(request, f"📱 {count} notificação(ões) de resultado enviada(s)!")
+            
             messages.success(request, "Resultado salvo! Classificação atualizada automaticamente.")
 
 
@@ -860,7 +898,16 @@ class ClassificacaoAdmin(admin.ModelAdmin):
     
     def atualizar_classificacao_manual(self, request, queryset):
         Classificacao.atualizar_classificacao()
+        
+        # Enviar notificação de ranking atualizado
+        from .views import send_notification_to_users
+        titulo = "📊 Ranking Atualizado!"
+        mensagem = "🏆 O ranking foi recalculado! Confira sua nova posição na classificação."
+        url_acao = "/classificacao/"
+        count = send_notification_to_users('ranking', titulo, mensagem, None, url_acao)
+        
         self.message_user(request, "Classificação atualizada com sucesso!")
+        self.message_user(request, f"📱 {count} notificação(ões) de ranking enviada(s)!")
     atualizar_classificacao_manual.short_description = "Atualizar classificação manualmente"
 
 
@@ -1157,15 +1204,30 @@ class NotificationAdmin(admin.ModelAdmin):
     
     def reenviar_notificacao(self, request, queryset):
         """Action para reenviar notificações"""
-        from .views import send_push_notification
+        import logging
+        logger = logging.getLogger(__name__)
         
         count = 0
-        for notification in queryset:
-            if send_push_notification(notification):
-                count += 1
+        falhas = 0
         
-        self.message_user(request, f'{count} notificação(ões) reenviada(s) com sucesso!')
-    reenviar_notificacao.short_description = 'Reenviar notificações selecionadas'
+        for notification in queryset:
+            logger.info(f"🔄 Reenviando notificação {notification.id} para {notification.participante.nome_exibicao}")
+            
+            try:
+                if debug_send_notification(notification):
+                    count += 1
+                else:
+                    falhas += 1
+            except Exception as e:
+                falhas += 1
+                logger.error(f"❌ Erro ao reenviar {notification.id}: {e}")
+        
+        if count > 0:
+            self.message_user(request, f'✅ {count} notificação(ões) reenviada(s) com sucesso!')
+        if falhas > 0:
+            self.message_user(request, f'❌ {falhas} notificação(ões) falharam!', level=messages.WARNING)
+            
+    reenviar_notificacao.short_description = '🔄 Reenviar notificações selecionadas (com debug)'
     
     def marcar_como_enviada(self, request, queryset):
         """Action para marcar notificações como enviadas"""
@@ -1238,16 +1300,27 @@ class NotificationAdmin(admin.ModelAdmin):
                 
                 # Enviar se solicitado
                 if enviar_imediatamente:
-                    from .views import send_push_notification
-                    
                     enviadas = 0
+                    falharam = 0
+                    
                     for notification in notifications_created:
-                        if send_push_notification(notification):
-                            enviadas += 1
+                        try:
+                            if debug_send_notification(notification):
+                                enviadas += 1
+                            else:
+                                falharam += 1
+                        except Exception as e:
+                            falharam += 1
+                            notification.status = 'failed'
+                            notification.error_message = f"Erro admin: {str(e)}"
+                            notification.save()
                     
                     messages.success(request, 
-                        f'🎉 Notificação criada e enviada para {len(notifications_created)} participante(s)! '
-                        f'{enviadas} entregue(s) com sucesso.')
+                        f'🎉 Notificação processada para {len(notifications_created)} participante(s)! '
+                        f'✅ {enviadas} enviada(s), ❌ {falharam} falharam.')
+                        
+                    if falharam > 0:
+                        messages.warning(request, f'⚠️ {falharam} notificação(ões) falharam. Verifique os logs.')
                 else:
                     messages.success(request, 
                         f'📝 Notificação criada para {len(notifications_created)} participante(s)! '

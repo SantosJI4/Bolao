@@ -21,6 +21,12 @@ urlpatterns = [
     path('offline/', views.offline_page, name='offline'),
     # Notification URLs
     path('notificacoes/', views.notification_settings, name='notification_settings'),
+    path('notification-settings/', views.notification_settings, name='notification_settings_en'),
+    path('test-notif/', views.test_notifications_simple, name='test_notifications_simple'),
     path('api/save-push-subscription/', views.save_push_subscription, name='save_push_subscription'),
     path('api/test-notification/', views.test_notification, name='test_notification'),
+    path('api/get-new-notifications/', views.get_new_notifications, name='get_new_notifications'),
+    path('api/mark-notifications-viewed/', views.mark_notifications_viewed, name='mark_notifications_viewed'),
+    path('api/notification-settings/', views.api_notification_settings, name='api_notification_settings'),
+    path('api/enable-all-notifications/', views.api_enable_all_notifications, name='api_enable_all_notifications'),
 ]
